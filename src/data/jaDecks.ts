@@ -1,7 +1,8 @@
 import type { Deck, WordEntry } from './decks';
 import { toRomaji } from '../lib/kana';
+import mina from './ja/mina';
 
-// jp|kana|pos|vietnamese
+// jp|reading|pos|vietnamese
 const N5_BASICS = `
 水|みず|n|nước
 火|ひ|n|lửa
@@ -470,8 +471,9 @@ function parse(src: string): WordEntry[] {
     .map((l) => l.trim())
     .filter(Boolean)
     .map((l) => {
-      const [jp, kana, pos, vi] = l.split('|').map((x) => (x ?? '').trim());
-      return { word: toRomaji(kana), jp, kana, pos, vi, meaning: '' } as WordEntry;
+      const [jp, kana = '', pos = 'n', vi = ''] = l.split('|').map((x) => (x ?? '').trim());
+      const word = toRomaji(kana);
+      return { word, jp, kana: kana || undefined, pos, vi, meaning: '' } as WordEntry;
     })
     .filter((e) => {
       const key = `${e.jp}|${e.kana}`;
@@ -529,5 +531,17 @@ export const JA_DECKS: Deck[] = [
     speed: 1.0,
     color: 'from-indigo-400 to-sky-500',
     words: parse(KATAKANA),
+  },
+  {
+    id: 'ja-mina-no-nihongo',
+    lang: 'ja',
+    name: 'Mina no Nihongo',
+    nameVi: 'Mina no Nihongo · Bài 1–6',
+    icon: '📘',
+    level: 'Beginner · Lessons 1–6',
+    description: 'Vocabulary from the first six lessons of Mina no Nihongo.',
+    speed: 0.85,
+    color: 'from-cyan-400 to-blue-500',
+    words: parse(mina),
   },
 ];

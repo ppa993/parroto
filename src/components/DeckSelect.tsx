@@ -23,6 +23,7 @@ const DECK_VI: Record<string, { level: string; desc: string }> = {
   'ja-food': { level: 'Ẩm thực', desc: 'Gọi ramen, đi tàu cao tốc, tìm suối nóng.' },
   'ja-verbs': { level: 'Trung cấp', desc: 'Động từ và tính từ trong đời sống hàng ngày.' },
   'ja-katakana': { level: 'Katakana', desc: 'Từ mượn dài với chữ ー và kana nhỏ.' },
+  'ja-mina-no-nihongo': { level: 'Bài 1–6', desc: 'Từ vựng Mina no Nihongo từ bài 1 đến bài 6.' },
 };
 
 const HELP_STEPS: [string, string, string][] = [
