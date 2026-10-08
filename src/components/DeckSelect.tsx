@@ -19,20 +19,7 @@ export default function DeckSelect({ initialDeck, settings, onSettingsChange, on
   const [peek, setPeek] = useState<WordEntry | null>(null);
   const deck = decks.find((d) => d.id === pickedId) ?? decks[0];
   const deckId = deck.id;
-  const deckDescriptions: Record<string, string> = {
-    basics: 'Những từ ngắn, thông dụng trong cuộc sống hằng ngày.',
-    nature: 'Động vật và thiên nhiên quanh ta.',
-    travel: 'Từ vựng hữu ích cho du lịch và ăn uống.',
-    business: 'Từ vựng tiếng Anh dùng trong công việc và kinh doanh.',
-    academic: 'Từ vựng học thuật và luyện thi IELTS.',
-  };
-  const levelLabels: Record<string, string> = {
-    Beginner: 'Cơ bản',
-    Elementary: 'Sơ cấp',
-    Intermediate: 'Trung cấp',
-    'Upper-Intermediate': 'Trên trung cấp',
-    Advanced: 'Nâng cao',
-  };
+
   const switchLang = (lang: 'en' | 'ja') => {
     if (lang === settings.lang) return;
     onSettingsChange({ lang });
@@ -41,7 +28,6 @@ export default function DeckSelect({ initialDeck, settings, onSettingsChange, on
   };
 
   const start = useCallback(() => {
-    // Called inside a user gesture: unlock speech + audio for browsers with autoplay restrictions
     unlockSpeech();
     unlockAudio();
     onStart(deckId, stage);
@@ -81,202 +67,243 @@ export default function DeckSelect({ initialDeck, settings, onSettingsChange, on
   };
 
   return (
-    <div className="relative z-10 flex h-full w-full flex-col items-center overflow-y-auto px-4 py-8">
-      <div className="slide-up mb-8 text-center">
-        <div className="floaty mb-2 text-6xl">🦜</div>
-        <h1 className="bg-gradient-to-r from-emerald-300 via-cyan-300 to-fuchsia-400 bg-clip-text text-5xl font-black tracking-tight text-transparent sm:text-6xl">
-          Parroto
-        </h1>
-        <p className="mt-2 text-lg font-semibold tracking-[0.3em] text-cyan-200/80 uppercase">Mưa Từ Vựng</p>
-        <p className="mx-auto mt-3 max-w-xl text-sm text-slate-300">
-          Từ vựng rơi xuống từ bầu trời. Hãy gõ chúng để bắn hạ trước khi chạm căn cứ. Chữ cái đầu tiên sẽ khóa mục
-          tiêu. Gõ hoàn chỉnh để phá hủy từ, nghe phát âm và thấy{' '}
-          <span className="font-semibold text-amber-200">nghĩa tiếng Việt</span> bung ra!
-        </p>
-        <div className="mt-5 inline-flex rounded-2xl border border-white/15 bg-white/5 p-1">
-          {(
-            [
-              ['en', '🇬🇧', 'English', 'Tiếng Anh'],
-              ['ja', '🇯🇵', '日本語', 'Tiếng Nhật'],
-            ] as const
-          ).map(([l, flag, label, vi]) => (
-            <button
-              key={l}
-              onClick={() => switchLang(l)}
-              className={`flex items-center gap-2 rounded-xl px-5 py-2 text-left transition-all ${
-                settings.lang === l
-                  ? 'bg-gradient-to-r from-cyan-400 to-fuchsia-500 text-white shadow-lg'
-                  : 'text-slate-300 hover:bg-white/10'
-              }`}
-            >
-              <span className="text-2xl">{flag}</span>
-              <span className="leading-tight">
-                <span className={`block font-bold ${l === 'ja' ? 'font-jp' : ''}`}>{label}</span>
-                <span className="font-vi block text-[11px] opacity-80">{vi}</span>
-              </span>
-            </button>
-          ))}
-        </div>
-        {settings.lang === 'ja' && (
-          <p className="font-vi mx-auto mt-3 max-w-xl text-xs text-pink-200/80">
-            🇯🇵 Gõ <b>romaji</b> để bắn từ tiếng Nhật, ví dụ 寿司 → <code>sushi</code>. Có thể dùng shi/si, tsu/tu,
-            chi/ti, ja/zya · ん = n/nn · っ = nhân đôi phụ âm (kitte) · ー = <code>-</code>
-          </p>
-        )}
-      </div>
-
-      <div className="grid w-full max-w-5xl gap-6 lg:grid-cols-[1.35fr_1fr]">
-        {/* Left: decks + preview */}
-        <div className="space-y-3">
-          <h2 className="text-xs font-bold tracking-widest text-slate-400 uppercase">1 · Chọn bộ từ</h2>
-          {decks.map((d, i) => {
-            const active = d.id === deckId;
-            const best = getBest(d.id);
-            return (
-              <button
-                key={d.id}
-                onClick={() => {
-                  setDeckId(d.id);
-                  setPeek(null);
-                }}
-                style={{ animationDelay: `${i * 60}ms` }}
-                className={`slide-up group flex w-full items-center gap-4 rounded-2xl border p-4 text-left transition-all ${
-                  active
-                    ? 'border-cyan-300/70 bg-white/10 shadow-[0_0_30px_-5px_rgba(34,211,238,0.5)]'
-                    : 'border-white/10 bg-white/[0.03] hover:border-white/30 hover:bg-white/[0.06]'
-                }`}
-              >
-                <div
-                  className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${d.color} text-3xl shadow-lg`}
-                >
-                  {d.icon}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-lg font-bold text-white">{d.name}</span>
-                    <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-bold tracking-wider text-slate-200 uppercase">
-                      {levelLabels[d.level] ?? d.level}
-                    </span>
-                  </div>
-                  <p className="font-vi truncate text-sm text-slate-400">
-                    {d.nameVi} · {deckDescriptions[d.id] ?? d.description}
-                  </p>
-                  <div className="mt-1 flex items-center gap-1">
-                    {Array.from({ length: 5 }, (_, k) => (
-                      <span
-                        key={k}
-                        className={`h-1.5 w-5 rounded-full ${k <= i ? 'bg-gradient-to-r ' + d.color : 'bg-white/10'}`}
-                      />
-                    ))}
-                  </div>
-                </div>
-                <div className="hidden text-right sm:block">
-                  <div className="text-[10px] tracking-wider text-slate-500 uppercase">Kỷ lục</div>
-                  <div className="font-game text-lg font-bold text-amber-300">{best}</div>
-                </div>
-              </button>
-            );
-          })}
-
-          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-            <div className="mb-2 flex items-center justify-between">
-              <span className="text-xs font-bold tracking-widest text-slate-400 uppercase">Xem trước bộ từ</span>
-              <span className="text-xs text-slate-500">{deck.words.length} từ</span>
+    <div className="relative z-10 flex h-full w-full flex-col overflow-hidden">
+      {/* Top bar */}
+      <header className="relative z-20 flex h-[72px] shrink-0 items-center justify-between border-b border-[var(--line)] px-5 sm:px-8">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full border border-[var(--line)] bg-[var(--paper)] text-xl shadow-[var(--shadow-sm)]">
+            🦜
+          </div>
+          <div className="leading-tight">
+            <div className="text-[20px] font-extrabold tracking-[-0.04em] text-[var(--ink)]">
+              parroto<span className="text-[var(--rose)]">.</span>
             </div>
-            <div className="mb-3 min-h-[44px] rounded-xl bg-slate-950/60 px-3 py-2">
-              {peek ? (
-                <div className="slide-up flex items-center gap-3" key={peek.word}>
+            <div className="eyebrow text-[9px]">a little journey of words</div>
+          </div>
+        </div>
+        <nav className="hidden items-center gap-6 text-sm font-semibold text-[var(--ink-soft)] md:flex">
+          <span className="relative text-[var(--sage)] after:absolute after:-bottom-1 after:left-0 after:h-0.5 after:w-full after:rounded-full after:bg-[var(--sage)]">
+            Word decks
+          </span>
+          <span className="opacity-60">How to play</span>
+        </nav>
+        <div className="eyebrow hidden sm:block">type · learn · fly</div>
+      </header>
+
+      <div className="relative z-10 min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-8 sm:py-8">
+        <div className="mx-auto grid w-full max-w-6xl gap-6 lg:grid-cols-[1.15fr_0.95fr]">
+          {/* Hero + language */}
+          <section className="slide-up space-y-5">
+            <div className="paper-card relative overflow-hidden p-6 sm:p-8">
+              <div className="absolute -top-16 -right-10 h-48 w-48 rounded-full bg-[var(--sage-soft)]/70 blur-2xl" />
+              <div className="absolute -bottom-20 left-10 h-40 w-56 rounded-full bg-[var(--gold-soft)]/60 blur-2xl" />
+              <p className="eyebrow relative">the world can wait</p>
+              <h1 className="relative mt-2 text-[clamp(2.4rem,5vw,3.6rem)] leading-[0.95] font-extrabold tracking-[-0.05em] text-[var(--ink)]">
+                A little rain
+                <br />
+                of words.
+              </h1>
+              <p className="relative mt-4 max-w-md text-[15px] leading-relaxed text-[var(--ink-soft)]">
+                Words drift down from a quiet sky. Type them letter by letter before they reach the ground — then hear
+                them spoken, and watch the{' '}
+                <span className="font-semibold text-[var(--sage-deep)]">Vietnamese meaning</span> bloom out.
+              </p>
+
+              <div className="relative mt-6 inline-flex rounded-2xl border border-[var(--line)] bg-[var(--cream)]/80 p-1">
+                {(
+                  [
+                    ['en', '🇬🇧', 'English', 'Tiếng Anh'],
+                    ['ja', '🇯🇵', '日本語', 'Tiếng Nhật'],
+                  ] as const
+                ).map(([l, flag, label, vi]) => (
                   <button
-                    onClick={() => hear(peek)}
-                    className="rounded-lg bg-white/10 px-2 py-1 text-base hover:bg-white/20"
-                    aria-label={`Phát âm ${peek.word}`}
+                    key={l}
+                    onClick={() => switchLang(l)}
+                    className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-left transition-all ${
+                      settings.lang === l
+                        ? 'bg-[var(--sage)] text-[var(--paper)] shadow-[0_6px_16px_rgba(74,99,72,0.2)]'
+                        : 'text-[var(--ink-soft)] hover:bg-white/70'
+                    }`}
                   >
-                    🔊
+                    <span className="text-xl">{flag}</span>
+                    <span className="leading-tight">
+                      <span className={`block text-sm font-bold ${l === 'ja' ? 'font-jp' : ''}`}>{label}</span>
+                      <span className="font-vi block text-[11px] opacity-80">{vi}</span>
+                    </span>
                   </button>
-                  <div className="min-w-0 leading-tight">
-                    <div>
-                      {peek.jp && <span className="font-jp mr-1.5 text-lg font-bold text-white">{peek.jp}</span>}
-                      {peek.jp && peek.kana !== peek.jp && (
-                        <span className="font-jp mr-1.5 text-xs text-pink-200">{peek.kana}</span>
-                      )}
-                      <span className="font-game font-bold text-cyan-200">{peek.word}</span>{' '}
-                      <span className="text-xs text-slate-500">({peek.pos})</span>{' '}
-                      <span className="font-vi font-semibold text-amber-200">— {peek.vi}</span>
-                    </div>
-                    {peek.meaning && <div className="truncate text-xs text-slate-400">{peek.meaning}</div>}
-                  </div>
-                </div>
-              ) : (
-                <div className="font-vi py-1.5 text-xs text-slate-500">
-                  👆 Chạm vào một từ để nghe phát âm và xem nghĩa
-                </div>
+                ))}
+              </div>
+
+              {settings.lang === 'ja' && (
+                <p className="font-vi relative mt-4 text-xs leading-relaxed text-[var(--ink-soft)]">
+                  Type <b>romaji</b> to shoot Japanese words — 寿司 → <code className="rounded bg-[var(--cream-deep)] px-1">sushi</code>.
+                  shi/si · tsu/tu · ん = n/nn · っ doubles · ー = <code className="rounded bg-[var(--cream-deep)] px-1">-</code>
+                </p>
               )}
             </div>
-            <div className="flex max-h-44 flex-wrap gap-1.5 overflow-y-auto pr-1">
-              {deck.words.map((wd) => (
-                <button
-                  key={`${wd.jp ?? ''}${wd.word}`}
-                  title={wd.meaning ? `${wd.vi} — ${wd.meaning}` : wd.jp ? `${wd.word} — ${wd.vi}` : wd.vi}
-                  onClick={() => hear(wd)}
-                  className={`${wd.jp ? 'font-jp' : 'font-game'} rounded-md px-2 py-0.5 text-xs transition-colors ${
-                    peek === wd
-                      ? 'bg-cyan-400/25 text-cyan-100'
-                      : 'bg-white/5 text-slate-300 hover:bg-white/15'
-                  }`}
-                >
-                  {wd.jp ?? wd.word}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
 
-        {/* Right: stage + settings + start */}
-        <div className="space-y-4">
-          <h2 className="text-xs font-bold tracking-widest text-slate-400 uppercase">2 · Chọn màn chơi</h2>
-          <div className="grid grid-cols-5 gap-2">
-            {Array.from({ length: STAGE_COUNT }, (_, i) => (
-              <button
-                key={i}
-                onClick={() => setStage(i)}
-                className={`rounded-xl border py-3 text-center transition-all ${
-                  stage === i
-                    ? 'border-amber-300 bg-amber-400/20 text-amber-200'
-                    : 'border-white/10 bg-white/[0.03] text-slate-300 hover:border-white/30'
-                }`}
-              >
-                <div className="text-xl font-black">{i + 1}</div>
-                <div className="text-[9px] tracking-wide uppercase opacity-70">
-                  {({ Drizzle: 'Mưa phùn', Shower: 'Mưa rào', Downpour: 'Mưa lớn', Thunderstorm: 'Giông bão', Monsoon: 'Mưa mùa' } as Record<string, string>)[STAGE_NAMES[i]] ?? STAGE_NAMES[i]}
+            {/* Deck list */}
+            <div>
+              <div className="mb-3 flex items-end justify-between">
+                <div>
+                  <p className="eyebrow">01 · choose a flight path</p>
+                  <h2 className="mt-1 text-xl font-bold tracking-tight text-[var(--ink)]">Pick a word deck</h2>
                 </div>
-              </button>
-            ))}
-          </div>
-          <p className="text-xs text-slate-400">
-            Mỗi màn tăng tốc độ rơi, độ dài từ và mật độ xuất hiện. Vượt qua màn {STAGE_COUNT} để chiến thắng!
-          </p>
+                <p className="text-xs text-[var(--muted)]">{decks.length} decks · {deck.words.length} words here</p>
+              </div>
 
-          <h2 className="pt-1 text-xs font-bold tracking-widest text-slate-400 uppercase">3 · Âm thanh & nghĩa</h2>
-          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-            <SettingsPanel settings={settings} onChange={onSettingsChange} />
-            {!ttsSupported && (
-              <p className="mt-3 text-xs text-amber-300/80">
-                Trình duyệt không hỗ trợ đọc văn bản. Hãy thử Chrome, Edge hoặc Safari để nghe phát âm.
+              <div className="space-y-2.5">
+                {decks.map((d, i) => {
+                  const active = d.id === deckId;
+                  const best = getBest(d.id);
+                  return (
+                    <button
+                      key={d.id}
+                      onClick={() => {
+                        setDeckId(d.id);
+                        setPeek(null);
+                      }}
+                      style={{ animationDelay: `${i * 50}ms` }}
+                      className={`slide-up group flex w-full items-center gap-4 rounded-2xl border p-4 text-left transition-all ${
+                        active
+                          ? 'border-[var(--sage)] bg-[var(--paper)] shadow-[0_0_0_3px_rgba(95,122,92,0.12),var(--shadow-sm)]'
+                          : 'border-[var(--line)] bg-[var(--paper)]/70 hover:border-[var(--sage)]/40 hover:bg-[var(--paper)] hover:shadow-[var(--shadow-sm)]'
+                      }`}
+                    >
+                      <div
+                        className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-2xl shadow-sm ${
+                          active ? 'bg-[var(--sage-soft)]' : 'bg-[var(--cream-deep)]'
+                        }`}
+                      >
+                        {d.icon}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-[15px] font-bold text-[var(--ink)]">{d.name}</span>
+                          <span className="rounded-full bg-[var(--cream-deep)] px-2 py-0.5 text-[10px] font-bold tracking-wide text-[var(--ink-soft)] uppercase">
+                            {d.level}
+                          </span>
+                        </div>
+                        <p className="font-vi mt-0.5 truncate text-[12px] text-[var(--muted)]">
+                          {d.nameVi} · {d.description}
+                        </p>
+                      </div>
+                      <div className="hidden text-right sm:block">
+                        <div className="eyebrow text-[8px]">Best</div>
+                        <div className="font-game text-base font-bold text-[var(--gold)]">{best || '—'}</div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </section>
+
+          {/* Right column */}
+          <aside className="slide-up space-y-4" style={{ animationDelay: '80ms' }}>
+            {/* Preview */}
+            <div className="paper-card p-5">
+              <div className="mb-3 flex items-center justify-between">
+                <span className="eyebrow">Deck preview</span>
+                <span className="text-xs text-[var(--muted)]">{deck.words.length} words</span>
+              </div>
+              <div className="mb-3 min-h-[52px] rounded-xl border border-[var(--line)] bg-[var(--cream)]/60 px-3 py-2.5">
+                {peek ? (
+                  <div className="slide-up flex items-center gap-3" key={`${peek.jp ?? ''}${peek.word}`}>
+                    <button
+                      onClick={() => hear(peek)}
+                      className="rounded-lg border border-[var(--line)] bg-white px-2 py-1 text-sm hover:bg-[var(--sage-soft)]"
+                      aria-label={`Pronounce ${peek.word}`}
+                    >
+                      🔊
+                    </button>
+                    <div className="min-w-0 leading-tight">
+                      <div>
+                        {peek.jp && <span className="font-jp mr-1.5 text-lg font-bold text-[var(--ink)]">{peek.jp}</span>}
+                        {peek.jp && peek.kana !== peek.jp && (
+                          <span className="font-jp mr-1.5 text-xs text-[var(--sage)]">{peek.kana}</span>
+                        )}
+                        <span className="font-game text-sm font-bold text-[var(--sage-deep)]">{peek.word}</span>{' '}
+                        <span className="text-xs text-[var(--muted)]">({peek.pos})</span>
+                      </div>
+                      <div className="font-vi text-sm font-semibold text-[var(--ink-soft)]">— {peek.vi}</div>
+                      {peek.meaning && <div className="truncate text-xs text-[var(--muted)]">{peek.meaning}</div>}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="font-vi py-1.5 text-xs text-[var(--muted)]">
+                    Tap a word to hear it · Nhấn vào từ để nghe phát âm
+                  </div>
+                )}
+              </div>
+              <div className="flex max-h-40 flex-wrap gap-1.5 overflow-y-auto pr-1">
+                {deck.words.slice(0, 80).map((wd) => (
+                  <button
+                    key={`${wd.jp ?? ''}${wd.word}`}
+                    title={wd.meaning ? `${wd.vi} — ${wd.meaning}` : wd.jp ? `${wd.word} — ${wd.vi}` : wd.vi}
+                    onClick={() => hear(wd)}
+                    className={`${wd.jp ? 'font-jp' : 'font-game'} rounded-lg px-2 py-0.5 text-xs transition-colors ${
+                      peek === wd
+                        ? 'bg-[var(--sage)] text-[var(--paper)]'
+                        : 'bg-[var(--cream)] text-[var(--ink-soft)] hover:bg-[var(--sage-soft)]'
+                    }`}
+                  >
+                    {wd.jp ?? wd.word}
+                  </button>
+                ))}
+                {deck.words.length > 80 && (
+                  <span className="self-center px-1 text-[10px] text-[var(--muted)]">+{deck.words.length - 80} more</span>
+                )}
+              </div>
+            </div>
+
+            {/* Stage */}
+            <div className="paper-card p-5">
+              <p className="eyebrow mb-3">02 · starting stage</p>
+              <div className="grid grid-cols-5 gap-2">
+                {Array.from({ length: STAGE_COUNT }, (_, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setStage(i)}
+                    className={`rounded-xl border py-3 text-center transition-all ${
+                      stage === i
+                        ? 'border-[var(--sage)] bg-[var(--sage-soft)] text-[var(--sage-deep)] shadow-sm'
+                        : 'border-[var(--line)] bg-[var(--cream)]/50 text-[var(--ink-soft)] hover:border-[var(--sage)]/40'
+                    }`}
+                  >
+                    <div className="text-lg font-extrabold">{i + 1}</div>
+                    <div className="text-[8px] tracking-wide uppercase opacity-70">{STAGE_NAMES[i]}</div>
+                  </button>
+                ))}
+              </div>
+              <p className="mt-3 text-xs leading-relaxed text-[var(--muted)]">
+                Each stage gently raises speed and density. Clear stage {STAGE_COUNT} to finish the journey.
               </p>
-            )}
-          </div>
+            </div>
 
-          <button
-            onClick={start}
-            className={`w-full rounded-2xl bg-gradient-to-r ${deck.color} py-4 text-xl font-black text-white shadow-xl transition-transform hover:scale-[1.02] active:scale-95`}
-          >
-            ▶ BẮT ĐẦU CHƠI
-          </button>
-          <p className="text-center text-xs text-slate-500">
-            <kbd className="rounded bg-white/10 px-1.5">Enter</kbd> bắt đầu · <kbd className="rounded bg-white/10 px-1.5">Esc</kbd>{' '}
-            tạm dừng · <kbd className="rounded bg-white/10 px-1.5">Backspace</kbd> bỏ khóa mục tiêu ·{' '}
-            <kbd className="rounded bg-white/10 px-1.5">↑↓</kbd> bộ từ
-          </p>
+            {/* Settings */}
+            <div className="paper-card p-5">
+              <p className="eyebrow mb-3">03 · sound & meaning</p>
+              <SettingsPanel settings={settings} onChange={onSettingsChange} />
+              {!ttsSupported && (
+                <p className="mt-3 text-xs text-[var(--rose)]">
+                  Speech isn’t available here — try Chrome, Edge or Safari for pronunciation.
+                </p>
+              )}
+            </div>
+
+            <button onClick={start} className="btn-sage w-full py-4 text-base tracking-tight">
+              ▶ Start this flight
+            </button>
+            <p className="text-center text-[11px] text-[var(--muted)]">
+              <kbd className="rounded border border-[var(--line)] bg-white px-1.5 py-0.5 font-mono text-[10px]">Enter</kbd>{' '}
+              start ·{' '}
+              <kbd className="rounded border border-[var(--line)] bg-white px-1.5 py-0.5 font-mono text-[10px]">Esc</kbd>{' '}
+              pause ·{' '}
+              <kbd className="rounded border border-[var(--line)] bg-white px-1.5 py-0.5 font-mono text-[10px]">↑↓</kbd>{' '}
+              deck
+            </p>
+          </aside>
         </div>
       </div>
     </div>

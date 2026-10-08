@@ -60,11 +60,11 @@ export async function renderScoreCard(d: ScoreCardData): Promise<Blob | null> {
   const ctx = canvas.getContext('2d');
   if (!ctx) return null;
 
-  // Background
+  // Cream paper background
   const bg = ctx.createLinearGradient(0, 0, 0, H);
-  bg.addColorStop(0, '#1e1b4b');
-  bg.addColorStop(0.55, '#0b1030');
-  bg.addColorStop(1, '#070b1f');
+  bg.addColorStop(0, '#f7f3ea');
+  bg.addColorStop(0.55, '#f4f0e6');
+  bg.addColorStop(1, '#ebe4d4');
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, W, H);
 
@@ -75,13 +75,14 @@ export async function renderScoreCard(d: ScoreCardData): Promise<Blob | null> {
     ctx.fillStyle = g;
     ctx.fillRect(x - r, y - r, r * 2, r * 2);
   };
-  glow(120, 420, 440, 'rgba(192,38,211,0.22)');
-  glow(980, 160, 440, 'rgba(34,211,238,0.18)');
+  glow(160, 220, 420, 'rgba(223,232,216,0.9)');
+  glow(920, 180, 380, 'rgba(232,220,200,0.75)');
+  glow(540, 980, 420, 'rgba(215,230,239,0.55)');
 
-  for (let i = 0; i < 140; i++) {
-    ctx.fillStyle = `rgba(255,255,255,${0.2 + Math.random() * 0.7})`;
+  for (let i = 0; i < 40; i++) {
+    ctx.fillStyle = `rgba(95,122,92,${0.05 + Math.random() * 0.12})`;
     ctx.beginPath();
-    ctx.arc(Math.random() * W, Math.random() * H, Math.random() * 2.2 + 0.6, 0, Math.PI * 2);
+    ctx.arc(Math.random() * W, Math.random() * H, Math.random() * 3 + 1, 0, Math.PI * 2);
     ctx.fill();
   }
 
@@ -91,48 +92,44 @@ export async function renderScoreCard(d: ScoreCardData): Promise<Blob | null> {
   // Header
   ctx.font = `110px ${FONT}`;
   ctx.fillText('🦜', W / 2, 170);
-  const titleGrad = ctx.createLinearGradient(W / 2 - 260, 0, W / 2 + 260, 0);
-  titleGrad.addColorStop(0, '#6ee7b7');
-  titleGrad.addColorStop(0.5, '#67e8f9');
-  titleGrad.addColorStop(1, '#e879f9');
-  ctx.fillStyle = titleGrad;
+  ctx.fillStyle = '#3d4a3a';
   ctx.font = `900 100px ${FONT}`;
-  ctx.fillText('Parroto', W / 2, 285);
-  ctx.fillStyle = 'rgba(165,243,252,0.85)';
-  ctx.font = `700 30px ${FONT}`;
-  ctx.fillText('M Ư A   T Ừ   V Ự N G', W / 2, 335);
+  ctx.fillText('parroto.', W / 2, 285);
+  ctx.fillStyle = '#8a9180';
+  ctx.font = `700 28px ${FONT}`;
+  ctx.fillText('A LITTLE JOURNEY OF WORDS', W / 2, 335);
 
   // Result
   const win = d.result === 'victory';
-  ctx.font = `900 72px ${FONT}`;
-  ctx.fillStyle = win ? '#fde047' : '#fb7185';
-  ctx.fillText(win ? '🏆 CHIẾN THẮNG!' : '💥 KẾT THÚC LƯỢT', W / 2, 450);
-  ctx.font = `600 34px ${FONT}`;
-  ctx.fillStyle = '#cbd5e1';
+  ctx.font = `900 64px ${FONT}`;
+  ctx.fillStyle = win ? '#4a6348' : '#b86b5a';
+  ctx.fillText(win ? 'Beautifully done.' : 'A soft landing.', W / 2, 450);
+  ctx.font = `600 30px ${FONT}`;
+  ctx.fillStyle = '#5a6756';
   ctx.fillText(fit(ctx, `${d.deckIcon} ${d.deckName} · ${d.level}`, W - 160), W / 2, 510);
 
   // Score panel
   roundRect(ctx, 100, 550, W - 200, 220, 36);
-  ctx.fillStyle = 'rgba(255,255,255,0.06)';
+  ctx.fillStyle = 'rgba(251,248,240,0.9)';
   ctx.fill();
-  ctx.strokeStyle = 'rgba(251,191,36,0.55)';
+  ctx.strokeStyle = 'rgba(95,122,92,0.28)';
   ctx.lineWidth = 3;
   ctx.stroke();
-  ctx.fillStyle = '#94a3b8';
+  ctx.fillStyle = '#8a9180';
   ctx.font = `800 28px ${FONT}`;
-  ctx.fillText('ĐIỂM', W / 2, 610);
-  ctx.fillStyle = '#fcd34d';
+  ctx.fillText('SCORE', W / 2, 610);
+  ctx.fillStyle = '#c4a574';
   ctx.font = `900 120px ${MONO}`;
   ctx.fillText(d.score.toLocaleString('en-US'), W / 2, 730);
 
   // Stats grid
   const stats: [string, string][] = [
-    ['Từ đã bắn', String(d.destroyed)],
-    ['Combo cao nhất', `x${d.maxCombo}`],
-    ['Độ chính xác', `${d.accuracy}%`],
+    ['Words', String(d.destroyed)],
+    ['Max combo', `x${d.maxCombo}`],
+    ['Accuracy', `${d.accuracy}%`],
     ['WPM', String(d.wpm)],
-    ['Màn', `${d.stage}/${d.stageCount}`],
-    ['Từ bị lọt', String(d.missed)],
+    ['Stage', `${d.stage}/${d.stageCount}`],
+    ['Missed', String(d.missed)],
   ];
   const cw = (W - 200 - 40) / 3;
   const ch = 120;
@@ -140,15 +137,15 @@ export async function renderScoreCard(d: ScoreCardData): Promise<Blob | null> {
     const x = 100 + (i % 3) * (cw + 20);
     const y = 800 + Math.floor(i / 3) * (ch + 20);
     roundRect(ctx, x, y, cw, ch, 24);
-    ctx.fillStyle = 'rgba(255,255,255,0.05)';
+    ctx.fillStyle = 'rgba(251,248,240,0.85)';
     ctx.fill();
-    ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+    ctx.strokeStyle = 'rgba(61,74,58,0.12)';
     ctx.lineWidth = 2;
     ctx.stroke();
-    ctx.fillStyle = '#ffffff';
+    ctx.fillStyle = '#3d4a3a';
     ctx.font = `900 50px ${MONO}`;
     ctx.fillText(value, x + cw / 2, y + 66);
-    ctx.fillStyle = '#94a3b8';
+    ctx.fillStyle = '#8a9180';
     ctx.font = `700 22px ${FONT}`;
     ctx.fillText(label.toUpperCase(), x + cw / 2, y + 100);
   });
@@ -156,29 +153,28 @@ export async function renderScoreCard(d: ScoreCardData): Promise<Blob | null> {
   // Words learned
   const words = d.words.slice(0, 6);
   if (words.length) {
-    ctx.fillStyle = '#94a3b8';
+    ctx.fillStyle = '#8a9180';
     ctx.font = `800 24px ${FONT}`;
-    ctx.fillText(`TỪ VỰNG ĐÃ HỌC (${d.words.length})`, W / 2, 1105);
+    ctx.fillText(`TỪ VỰNG ĐÃ HỌC · WORDS LEARNED (${d.words.length})`, W / 2, 1105);
     ctx.textAlign = 'left';
     words.forEach((wd, i) => {
       const x = 110 + (i % 2) * 440;
       const y = 1155 + Math.floor(i / 2) * 46;
-      ctx.fillStyle = '#a5f3fc';
-      ctx.font = `800 28px ${MONO}`;
       const label = wd.jp ?? wd.word;
-      if (wd.jp) ctx.font = `800 28px "Noto Sans JP", ${FONT}`;
+      ctx.fillStyle = '#4a6348';
+      ctx.font = wd.jp ? `800 28px "Noto Sans JP", ${FONT}` : `800 28px ${MONO}`;
       ctx.fillText(label, x, y);
       const ww = ctx.measureText(label).width;
-      ctx.fillStyle = '#e2e8f0';
+      ctx.fillStyle = '#5a6756';
       ctx.font = `500 26px ${FONT}`;
       ctx.fillText(fit(ctx, ` – ${wd.vi}`, 420 - ww), x + ww, y);
     });
     ctx.textAlign = 'center';
   }
 
-  ctx.fillStyle = '#64748b';
+  ctx.fillStyle = '#8a9180';
   ctx.font = `600 24px ${FONT}`;
-  ctx.fillText('Learn English vocabulary by typing · Parroto Word Rain', W / 2, H - 40);
+  ctx.fillText('A little journey of words · Parroto', W / 2, H - 40);
 
   return new Promise((resolve) => canvas.toBlob((b) => resolve(b), 'image/png'));
 }
@@ -197,7 +193,7 @@ export async function shareScoreImage(
       await navigator.share({
         files: [file],
         title: 'Parroto · Word Rain',
-        text: `Tôi đạt ${d.score.toLocaleString('en-US')} điểm trong Mưa Từ Vựng Parroto (${d.deckName})!`,
+        text: `I scored ${d.score.toLocaleString('en-US')} in Parroto Word Rain (${d.deckName})!`,
       });
       return 'shared';
     } catch {

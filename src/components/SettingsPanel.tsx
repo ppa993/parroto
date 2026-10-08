@@ -24,8 +24,8 @@ export default function SettingsPanel({ settings, onChange, compact }: Props) {
     <div className="space-y-2.5 text-left">
       <ToggleRow
         icon="🔊"
-        title="Đọc từ thành tiếng"
-        sub={ttsSupported ? 'Đọc từ vừa bắn hạ' : 'Trình duyệt không hỗ trợ đọc văn bản'}
+        title="Read words aloud"
+        sub={ttsSupported ? 'Đọc to từ vừa bắn hạ' : 'Speech is not supported in this browser'}
         checked={settings.tts && ttsSupported}
         disabled={!ttsSupported}
         onChange={(v) => onChange({ tts: v })}
@@ -46,9 +46,9 @@ export default function SettingsPanel({ settings, onChange, compact }: Props) {
           <Segmented
             value={String(settings.rate)}
             options={[
-              ['0.75', 'Chậm'],
-              ['0.95', 'Bình thường'],
-              ['1.15', 'Nhanh'],
+              ['0.75', 'Slow'],
+              ['0.95', 'Normal'],
+              ['1.15', 'Fast'],
             ]}
             onChange={(v) => onChange({ rate: Number(v) })}
           />
@@ -59,10 +59,10 @@ export default function SettingsPanel({ settings, onChange, compact }: Props) {
                 onChange({ voiceURI: e.target.value });
                 test(e.target.value, 'hello');
               }}
-              className="max-w-[210px] rounded-lg border border-white/15 bg-slate-900 px-2 py-1 text-xs text-slate-200 outline-none focus:border-cyan-300"
-              aria-label="Giọng đọc"
+              className="max-w-[210px] rounded-lg border border-[var(--line)] bg-white px-2 py-1 text-xs text-[var(--ink)] outline-none focus:border-[var(--sage)]"
+              aria-label="Voice"
             >
-              <option value="">Tự động chọn giọng</option>
+              <option value="">Auto voice</option>
               {sortedVoices.map((v) => (
                 <option key={v.voiceURI} value={v.voiceURI}>
                   {v.name} ({v.lang})
@@ -70,24 +70,21 @@ export default function SettingsPanel({ settings, onChange, compact }: Props) {
               ))}
             </select>
           )}
-          <button
-            onClick={() => test()}
-            className="rounded-lg border border-white/15 bg-white/5 px-2.5 py-1 text-xs font-semibold text-cyan-200 hover:bg-white/10"
-          >
-            ▶ Thử giọng
+          <button onClick={() => test()} className="btn-ghost px-2.5 py-1 text-xs font-semibold">
+            ▶ Test
           </button>
         </div>
       )}
       <ToggleRow
         icon="💥"
-        title="Hiện nghĩa tiếng Việt"
+        title="Vietnamese meaning burst"
         sub="Nghĩa tiếng Việt bung ra khi từ phát nổ"
         checked={settings.showVi}
         onChange={(v) => onChange({ showVi: v })}
       />
       <ToggleRow
         icon="💡"
-        title="Gợi ý nghĩa trên từ đang rơi"
+        title="Meaning hints on falling words"
         sub="Hiện nghĩa dưới từ đang rơi (dễ hơn)"
         checked={settings.hints}
         onChange={(v) => onChange({ hints: v })}
@@ -95,7 +92,7 @@ export default function SettingsPanel({ settings, onChange, compact }: Props) {
       {settings.lang === 'ja' && (
         <ToggleRow
           icon="あ"
-          title="Hiện cách đọc kana"
+          title="Show kana reading"
           sub="Hiện cách đọc hiragana trên chữ Kanji"
           checked={settings.showKana}
           onChange={(v) => onChange({ showKana: v })}
@@ -103,18 +100,18 @@ export default function SettingsPanel({ settings, onChange, compact }: Props) {
       )}
       <ToggleRow
         icon="🎵"
-        title="Hiệu ứng âm thanh"
+        title="Sound effects"
         sub="Hiệu ứng âm thanh bắn, nổ"
         checked={settings.sfx}
         onChange={(v) => onChange({ sfx: v })}
       />
-      <Row icon="⌨️" title="Bàn phím trên màn hình" sub="Bàn phím ảo cho điện thoại / iPad">
+      <Row icon="⌨️" title="On-screen keyboard" sub="Bàn phím ảo cho điện thoại / iPad">
         <Segmented
           value={settings.keyboard}
           options={[
-            ['auto', 'Tự động'],
-            ['on', 'Bật'],
-            ['off', 'Tắt'],
+            ['auto', 'Auto'],
+            ['on', 'On'],
+            ['off', 'Off'],
           ]}
           onChange={(v) => onChange({ keyboard: v as KeyboardMode })}
         />
@@ -126,10 +123,12 @@ export default function SettingsPanel({ settings, onChange, compact }: Props) {
 function Row({ icon, title, sub, children }: { icon: string; title: string; sub?: string; children: ReactNode }) {
   return (
     <div className="flex items-center gap-3">
-      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/5 text-lg">{icon}</div>
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--cream-deep)] text-base">
+        {icon}
+      </div>
       <div className="min-w-0 flex-1">
-        <div className="text-sm font-semibold text-slate-100">{title}</div>
-        {sub && <div className="truncate text-[11px] text-slate-400">{sub}</div>}
+        <div className="text-sm font-semibold text-[var(--ink)]">{title}</div>
+        {sub && <div className="truncate text-[11px] text-[var(--muted)]">{sub}</div>}
       </div>
       {children}
     </div>
@@ -160,7 +159,7 @@ function ToggleRow({
         disabled={disabled}
         onClick={() => onChange(!checked)}
         className={`relative h-6 w-11 shrink-0 rounded-full transition-colors disabled:opacity-40 ${
-          checked ? 'bg-gradient-to-r from-cyan-400 to-emerald-400' : 'bg-white/15'
+          checked ? 'bg-[var(--sage)]' : 'bg-[var(--cream-deep)]'
         }`}
       >
         <span
@@ -183,13 +182,13 @@ function Segmented({
   onChange: (v: string) => void;
 }) {
   return (
-    <div className="inline-flex shrink-0 rounded-lg border border-white/15 bg-white/5 p-0.5">
+    <div className="inline-flex shrink-0 rounded-lg border border-[var(--line)] bg-[var(--cream)] p-0.5">
       {options.map(([v, label]) => (
         <button
           key={v}
           onClick={() => onChange(v)}
           className={`rounded-md px-2.5 py-1 text-xs font-semibold transition-colors ${
-            value === v ? 'bg-cyan-400/90 text-slate-950' : 'text-slate-300 hover:text-white'
+            value === v ? 'bg-[var(--sage)] text-[var(--paper)]' : 'text-[var(--ink-soft)] hover:text-[var(--ink)]'
           }`}
         >
           {label}

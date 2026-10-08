@@ -31,7 +31,7 @@ export default function App() {
   const menu = useCallback(() => setScreen({ name: 'menu' }), []);
 
   return (
-    <div className="relative h-full w-full overflow-hidden text-white">
+    <div className="relative h-full w-full overflow-hidden text-[var(--ink)]">
       <Stars />
       {screen.name === 'menu' ? (
         <DeckSelect initialDeck={lastDeck} settings={settings} onSettingsChange={updateSettings} onStart={start} />

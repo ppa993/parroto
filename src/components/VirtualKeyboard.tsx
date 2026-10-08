@@ -18,15 +18,15 @@ function VirtualKeyboard({ onChar, onBackspace }: Props) {
   };
 
   const keyClass = (k: string) =>
-    `flex h-11 flex-1 max-w-[52px] items-center justify-center rounded-lg text-lg font-bold uppercase shadow-[0_2px_0_rgba(0,0,0,0.5)] transition-all duration-75 sm:h-12 ${
+    `flex h-11 flex-1 max-w-[52px] items-center justify-center rounded-xl text-lg font-bold uppercase shadow-[0_2px_0_rgba(61,74,58,0.12)] transition-all duration-75 sm:h-12 ${
       pressed === k
-        ? 'translate-y-0.5 bg-cyan-400 text-slate-950 shadow-none'
-        : 'bg-slate-700/70 text-white active:bg-slate-600'
+        ? 'translate-y-0.5 bg-[var(--sage)] text-[var(--paper)] shadow-none'
+        : 'border border-[var(--line)] bg-[var(--paper)] text-[var(--ink)]'
     }`;
 
   return (
     <div
-      className="relative z-30 shrink-0 touch-manipulation border-t border-white/10 bg-slate-950/90 px-1 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] backdrop-blur select-none"
+      className="relative z-30 shrink-0 touch-manipulation border-t border-[var(--line)] bg-[var(--paper)]/90 px-1 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] backdrop-blur select-none"
       onContextMenu={(e) => e.preventDefault()}
     >
       <div className="mx-auto max-w-2xl space-y-1.5">
@@ -38,7 +38,7 @@ function VirtualKeyboard({ onChar, onBackspace }: Props) {
               </button>
             ))}
             {r === 2 && (
-              <button onPointerDown={press('-', () => onChar('-'))} className={keyClass('-')} aria-label="Âm dài">
+              <button onPointerDown={press('-', () => onChar('-'))} className={keyClass('-')} aria-label="Long vowel">
                 ー
               </button>
             )}
@@ -46,7 +46,7 @@ function VirtualKeyboard({ onChar, onBackspace }: Props) {
               <button
                 onPointerDown={press('⌫', onBackspace)}
                 className={`${keyClass('⌫')} max-w-[90px] flex-[1.6] text-base normal-case`}
-                aria-label="Bỏ khóa mục tiêu"
+                aria-label="Release target"
               >
                 ⌫
               </button>
