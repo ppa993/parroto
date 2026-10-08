@@ -992,7 +992,7 @@ export default function Game({ deckId, startStage, settings, onSettingsChange, o
             <p className="font-vi mt-1 text-sm text-[var(--ink-soft)]">Từ vựng của bạn đang ngắm cảnh.</p>
             <div className="mt-5 flex flex-wrap justify-center gap-3">
               <Btn primary onClick={() => setPaused(false)}>
-                ▶ Trở lại chuyến đi
+                ▶ Trở lại
               </Btn>
               <Btn onClick={onRestart}>↻ Chơi lại</Btn>
               <Btn onClick={onMenu}>☰ Chọn bộ thẻ</Btn>
@@ -1179,7 +1179,7 @@ export default function Game({ deckId, startStage, settings, onSettingsChange, o
           <div className="flex items-stretch gap-3">
             <button onClick={onMenu} className="btn-ghost px-5 py-3.5 text-sm">
               <span className="mr-2" aria-hidden="true">↓</span>
-              Rời tuyến
+              Rời khỏi
             </button>
             <button
               onClick={() => setPaused(!g.paused)}
@@ -1188,9 +1188,6 @@ export default function Game({ deckId, startStage, settings, onSettingsChange, o
               <span className="text-base">{g.paused ? '▶' : '❚❚'}</span>
               <span className="text-left leading-tight">
                 {g.paused ? 'TIẾP TỤC' : 'TẠM DỪNG'}
-                <span className="block text-[9px] font-medium tracking-widest opacity-70">
-                  {g.paused ? 'TRỞ LẠI TUYẾN' : 'MỘT CHÚT NGHỈ'}
-                </span>
               </span>
               <span className="rounded-md border border-white/25 px-1.5 py-0.5 font-mono text-[10px]">Esc</span>
             </button>
