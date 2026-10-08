@@ -1,0 +1,106 @@
+export default `
+解釈|kaishaku|n|diễn giải
+概念|gainen|n|khái niệm
+抽象|chuushou|n|trừu tượng
+具体|gutai|n|cụ thể
+構造|kouzou|n|cấu trúc
+体系|taikei|n|hệ thống
+様式|youshiki|n|kiểu cách
+傾斜|keisha|n|độ nghiêng
+衝突|shoutotsu|n|va chạm, xung đột
+矛盾|mujun|n|mâu thuẫn
+対立|tairitsu|n|đối lập
+葛藤|kattou|n|xung đột nội tâm
+偏見|henken|n|định kiến
+先入観|sennyuukan|n|thành kiến
+価値観|kachikan|n|giá trị quan
+倫理|rinri|n|đạo đức
+道徳|doutoku|n|luân lý
+宗教|shuukyou|n|tôn giáo
+伝統|dentou|n|truyền thống
+慣習|kanshuu|n|tập quán
+風習|fuushuu|n|phong tục
+民族|minzoku|n|dân tộc
+言語|gengo|n|ngôn ngữ
+方言|hougen|n|phương ngữ
+語彙|goi|n|từ vựng
+文法|bunpou|n|ngữ pháp
+表現|hyougen|n|biểu hiện
+比喩|hiyu|n|ẩn dụ
+象徴|shouchou|n|biểu tượng
+暗示|anji|n|ám chỉ
+示唆|shisa|n|gợi ý
+論理|ronri|n|lý luận
+論証|ronshou|n|lập luận
+根拠|kongo|n|căn cứ
+前提|zentei|n|tiền đề
+結論|ketsuron|n|kết luận
+仮定|katei|n|giả định
+推論|suiron|n|suy luận
+帰納|kinou|n|quy nạp
+演繹|enyoku|n|suy diễn
+命題|meidai|n|mệnh đề
+概要|gaiyou|n|khái yếu
+要旨|youshi|n|yếu chỉ
+趣旨|shushi|n|mục đích, tôn chỉ
+議論|giron|n|tranh luận
+討論|touron|n|thảo luận
+主張|shuchou|n|chủ trương
+反論|hanron|n|phản luận
+譲歩|jouho|n|nhượng bộ
+妥協|dakyou|n|thỏa hiệp
+合意|goui|n|đồng thuận
+承認|shounin|n|công nhận
+否定|hitei|n|phủ định
+肯定|kentei|n|khẳng định
+容認|younin|n|chấp nhận
+黙認|mokunin|n|mặc nhận
+放棄|houki|n|từ bỏ
+継続|keizoku|n|tiếp tục
+中断|chuudan|n|gián đoạn
+蓄積|chikuseki|n|tích lũy
+消費|shouhi|n|tiêu thụ
+浪費|rouhi|n|lãng phí
+節約|setsuyaku|n|tiết kiệm
+配分|haibun|n|phân bổ
+分配|bunpai|n|phân phối
+集約|shuuyaku|n|tập trung
+拡大|kakudai|n|mở rộng
+縮小|shukushou|n|thu nhỏ
+普及|fukyuu|n|phổ biến
+浸透|shintou|n|thẩm thấu
+抑制|yokusei|n|kiềm chế
+促進|sokushin|n|xúc tiến
+阻止|soshi|n|ngăn chặn
+妨害|bougai|n|cản trở
+厳密|genmitsu|adj|nghiêm ngặt
+緻密|chimitsu|adj|tỉ mỉ
+大胆|daitan|adj|táo bạo
+慎重|shinchou|adj|thận trọng
+冷静|reisei|adj|bình tĩnh
+地道|jimichi|adj|chính gốc
+貴重|kichou|adj|quý giá
+素朴|soboku|adj|giản dị
+斬新|zanshin|adj|mới lạ
+膨大|boudai|adj|khổng lồ
+わずか|wazuka|adj|chỉ một chút
+著しい|ichijirushii|adj|rõ rệt
+顕著|kenchaku|adj|rõ ràng
+可決|kaketsu|n|thông qua
+却下|kyakka|n|bác bỏ
+見込む|mikomu|v|kỳ vọng
+見極める|mikiwameru|v|nhận định rõ
+捉える|toraeru|v|nắm bắt
+覆す|kutsugaesu|v|lật đổ
+招く|maneku|v|dẫn đến
+努める|tsutomeru|v|nỗ lực
+携わる|tazusawaru|v|liên quan đến
+委ねる|yudaneru|v|giao phó
+損なう|sokonau|v|làm hại
+補う|ogau|v|bù đắp
+衰える|otoroeru|v|suy yếu
+屈する|kussuru|v|khuất phục
+臨む|nozomu|v|đối mặt
+省く|habuku|v|lược bỏ
+凌ぐ|shinogu|v|vượt qua
+`;

@@ -314,7 +314,8 @@ export const displayOf = (e: WordEntry) => e.jp ?? e.word;
 export const STAGE_COUNT = 5;
 /** Words per stage: 12, 16, 20, 24, 28 */
 export const stageWordCount = (index: number) => 12 + index * 4;
-export const STAGE_NAMES = ['Drizzle', 'Shower', 'Downpour', 'Thunderstorm', 'Monsoon'];
+export const STAGE_NAMES = ['Phùn', 'Rào', 'Lớn', 'Sấm', 'Bão'];
+export const STAGE_NAMES_LONG = ['Mưa phùn', 'Mưa rào', 'Mưa lớn', 'Sấm sét', 'Mưa bão'];
 
 export type StageConfig = {
   index: number;

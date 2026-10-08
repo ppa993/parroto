@@ -71,7 +71,7 @@ type ShareState = 'idle' | 'working' | 'shared' | 'downloaded' | 'failed';
 const BASE_ZONE = 110; // px from bottom where words hit the base
 const CHAR_W = 14;
 const BURST_LIFE = 2.2;
-const COLORS = ['#c4a574', '#5f7a5c', '#b86b5a', '#8fa88a', '#d4b896', '#6b7f4f'];
+const COLORS = ['#dfc995', '#b8d0bd', '#d8947e', '#c7ddd1', '#d4c09a', '#91b6a6'];
 
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
 const clamp01 = (v: number) => clamp(v, 0, 1);
@@ -121,7 +121,6 @@ function createEngine(deckId: string, startStage: number) {
     playTime: 0,
     learned: [] as WordEntry[],
     missedWords: [] as WordEntry[],
-    toast: null as null | { entry: WordEntry; t: number; id: number },
     shake: 0,
     hurt: 0,
     heartAnim: 0,
@@ -169,6 +168,17 @@ export default function Game({ deckId, startStage, settings, onSettingsChange, o
   const cardRef = useRef<{ blob: Blob | null }>({ blob: null });
   const [, setTick] = useState(0);
   const [shareState, setShareState] = useState<ShareState>('idle');
+  const [clock, setClock] = useState(() =>
+    new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
+  );
+
+  useEffect(() => {
+    const t = window.setInterval(
+      () => setClock(new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })),
+      30000
+    );
+    return () => window.clearInterval(t);
+  }, []);
 
   useEffect(() => {
     settingsRef.current = settings;
@@ -352,7 +362,6 @@ export default function Game({ deckId, startStage, settings, onSettingsChange, o
       sfx.explode();
 
       if (!g.learned.includes(w.entry)) g.learned.push(w.entry);
-      g.toast = { entry: w.entry, t: 3.5, id: nextId() };
     },
     [g, burst, say]
   );
@@ -483,10 +492,6 @@ export default function Game({ deckId, startStage, settings, onSettingsChange, o
           f.y -= 50 * dt;
           return f.life > 0;
         });
-        if (g.toast) {
-          g.toast.t -= dt;
-          if (g.toast.t <= 0) g.toast = null;
-        }
         g.shake = Math.max(0, g.shake - dt);
         g.hurt = Math.max(0, g.hurt - dt);
         g.heartAnim = Math.max(0, g.heartAnim - dt);
@@ -609,86 +614,93 @@ export default function Game({ deckId, startStage, settings, onSettingsChange, o
 
   return (
     <div className="relative z-10 flex h-full w-full flex-col">
-      {/* HUD */}
-      <div className="relative z-20 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b border-[var(--line)] bg-[var(--paper)]/85 px-3 py-2.5 backdrop-blur-md sm:px-5">
-        <div className="flex items-center gap-3">
+      {/* ---------- Top nav ---------- */}
+      <header className="relative z-30 flex h-[64px] shrink-0 items-center justify-between px-4 sm:px-6">
+        <button
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={onMenu}
+          className="flex items-center gap-2.5 text-left"
+          title="Chọn lại bộ thẻ"
+        >
+          <span className="grid h-9 w-9 place-items-center rounded-full border border-[var(--line)] bg-[var(--paper)] text-lg shadow-[var(--shadow-sm)]">
+            🦜
+          </span>
+          <span className="hidden leading-tight sm:block">
+            <span className="block text-[18px] font-extrabold tracking-[-0.04em] text-[var(--ink)]">
+              parroto<span className="text-[var(--rose)]">.</span>
+            </span>
+            <span className="eyebrow block text-[8px]">MỘT CHUYẾN ĐI NHỎ CỦA TỪ VỰNG</span>
+          </span>
+        </button>
+
+        <nav className="flex items-center gap-6">
+          <span className="relative flex items-center gap-2 pb-1 text-sm font-semibold text-[#244650] after:absolute after:bottom-0 after:left-1/2 after:h-0.5 after:w-full after:-translate-x-1/2 after:rounded-full after:bg-[#244650]">
+            <span aria-hidden="true">☈</span>
+            {g.deck.nameVi || g.deck.name}
+            <span className="h-1.5 w-1.5 rounded-full bg-[var(--sage)]" />
+          </span>
           <button
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={onMenu}
-            className="btn-ghost px-2.5 py-1.5 text-sm"
-            title="Back to decks"
+            onClick={() => setPaused(true)}
+            className="hidden pb-1 text-sm font-semibold text-[#55727a] transition-colors hover:text-[#244650] sm:block"
           >
-            ← Decks
+            Cách chơi
           </button>
-          <div className="hidden items-center gap-2 sm:flex">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--sage-soft)] text-xl">{g.deck.icon}</span>
-            <div className="leading-tight">
-              <div className="text-sm font-bold text-[var(--ink)]">{g.deck.name}</div>
-              <div className="font-vi text-[11px] text-[var(--muted)]">{g.deck.nameVi}</div>
+        </nav>
+
+        <div className="flex items-center gap-2.5">
+          <div className="hidden text-right leading-tight sm:block">
+            <div className="flex items-center justify-end gap-1.5 text-sm font-bold text-[var(--ink)]">
+              <span aria-hidden="true">⛅</span> {clock}
             </div>
+            <div className="eyebrow text-[8px]">GIỜ VÀNG</div>
           </div>
-        </div>
-
-        <div className="flex items-center gap-4 sm:gap-5">
-          <Stat label="Stage" value={`${g.stageIndex + 1}/${STAGE_COUNT}`} sub={g.stage.name} />
-          <Stat label="Score" value={g.score.toLocaleString()} highlight />
-          <Stat label="Combo" value={`x${g.combo}`} />
-          <div className="hidden md:block">
-            <Stat label="WPM · Acc" value={`${wpm} · ${accuracy}%`} />
-          </div>
-        </div>
-
-        <div className="flex items-center gap-1.5">
-          <div className={`mr-1 flex gap-0.5 text-xl sm:text-2xl ${g.heartAnim > 0 ? 'heart-loss' : ''}`}>
-            {Array.from({ length: 3 }, (_, i) => (
-              <span
-                key={i}
-                className={`transition-all duration-300 ${
-                  i < g.lives ? 'drop-shadow-[0_0_6px_rgba(184,107,90,0.45)]' : 'scale-75 opacity-25 grayscale'
-                }`}
-              >
-                ❤️
-              </span>
-            ))}
-          </div>
+          <span className="hidden h-7 w-px bg-[var(--line)] sm:block" />
           <IconBtn
             active={settings.tts}
             onClick={() => onSettingsChange({ tts: !settings.tts })}
-            title={settings.tts ? 'Read aloud: ON' : 'Read aloud: OFF'}
+            title={settings.tts ? 'Đọc từ: BẬT' : 'Đọc từ: TẮT'}
           >
             {settings.tts ? '🔊' : '🔇'}
           </IconBtn>
           <IconBtn
             active={settings.showVi}
             onClick={() => onSettingsChange({ showVi: !settings.showVi })}
-            title={settings.showVi ? 'Vietnamese meaning burst: ON' : 'Vietnamese meaning burst: OFF'}
+            title={settings.showVi ? 'Nghĩa tiếng Việt: BẬT' : 'Nghĩa tiếng Việt: TẮT'}
           >
             <span className="text-[11px] font-black tracking-tight">VI</span>
           </IconBtn>
           <IconBtn
             active={settings.sfx}
             onClick={() => onSettingsChange({ sfx: !settings.sfx })}
-            title={settings.sfx ? 'Sound effects: ON' : 'Sound effects: OFF'}
+            title={settings.sfx ? 'Hiệu ứng: BẬT' : 'Hiệu ứng: TẮT'}
           >
             <span className={settings.sfx ? '' : 'opacity-40 grayscale'}>🎵</span>
           </IconBtn>
-          <IconBtn active onClick={() => setPaused(!g.paused)} title="Pause (Esc)">
+          <IconBtn active={g.paused} onClick={() => setPaused(!g.paused)} title="Tạm dừng (Esc)">
             {g.paused ? '▶' : '❚❚'}
           </IconBtn>
         </div>
+      </header>
 
-        <div className="absolute right-0 bottom-0 left-0 h-0.5 bg-[var(--cream-deep)]">
-          <div
-            className="h-full bg-[var(--sage)] transition-[width] duration-300"
-            style={{ width: `${clamp01(stageProgress) * 100}%` }}
-          />
+      {/* ---------- Viewport ---------- */}
+      <div className="relative z-10 min-h-0 flex-1 px-3 pb-3 sm:px-5 sm:pb-4">
+      <div
+        ref={fieldRef}
+        className="relative h-full overflow-hidden rounded-[26px] border border-[var(--line)] bg-[linear-gradient(180deg,rgba(113,143,158,0.72)_0%,rgba(112,149,157,0.68)_48%,rgba(66,109,119,0.78)_100%)] shadow-[var(--shadow)] select-none"
+      >
+        {/* drifting clouds inside the scene */}
+        <div className="pointer-events-none absolute inset-0 overflow-hidden">
+          <div className="cloud cloud-a absolute top-[8%] left-[-5%] h-28 w-[24rem] rounded-[100%] bg-white/65 blur-2xl" />
+          <div className="cloud cloud-b absolute top-[30%] right-[-4%] h-36 w-[28rem] rounded-[100%] bg-white/55 blur-3xl" />
+          <div className="cloud cloud-d absolute bottom-[16%] right-[12%] h-28 w-[22rem] rounded-[100%] bg-white/60 blur-2xl" />
+          <span className="mote absolute top-[22%] left-[52%] h-1.5 w-1.5 rounded-full bg-white/80" />
+          <span className="mote absolute top-[44%] left-[76%] h-1 w-1 rounded-full bg-white/70" style={{ animationDelay: '1.4s' }} />
         </div>
-      </div>
 
-      {/* Play field */}
-      <div ref={fieldRef} className="relative min-h-0 flex-1 overflow-hidden select-none">
+        
+
         {/* Soft sky playfield wash */}
-        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(215,230,239,0.35)_0%,rgba(251,248,240,0.15)_45%,rgba(223,232,216,0.4)_100%)]" />
+        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(215,230,239,0.25)_0%,rgba(251,248,240,0.1)_45%,rgba(223,232,216,0.3)_100%)]" />
         <div className="absolute inset-0" style={{ transform: `translate(${shakeX}px, ${shakeY}px)` }}>
           {/* Danger line */}
           <div
@@ -929,58 +941,19 @@ export default function Game({ deckId, startStage, settings, onSettingsChange, o
                 <span className="text-[var(--muted)]">{progressParts(locked.units, locked.st)[1]}</span>
               </span>
             ) : (
-              <span className="truncate text-xs text-[var(--muted)] sm:text-sm">type to lock on…</span>
+              <span className="truncate text-xs text-[var(--muted)] sm:text-sm">gõ để khóa mục tiêu…</span>
             )}
             <span className="ml-0.5 inline-block h-5 w-0.5 shrink-0 animate-pulse bg-[var(--sage)]" />
           </div>
         </div>
 
-        {/* Last word card (bottom-right) */}
-        {g.toast && (
-          <div
-            key={g.toast.id}
-            className="slide-up paper-card absolute right-3 bottom-3 z-20 hidden max-w-[min(20rem,calc(50%-52px))] px-3 py-2 md:block"
-            style={{ opacity: Math.min(1, g.toast.t) }}
-          >
-            <div className="flex items-center justify-between gap-3">
-              <span className="eyebrow text-[9px] text-[var(--sage)]">Word learned</span>
-              <button
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => g.toast && say(g.toast.entry)}
-                className="rounded-md bg-[var(--cream)] px-1.5 text-sm hover:bg-[var(--sage-soft)]"
-                title="Listen again"
-              >
-                🔊
-              </button>
-            </div>
-            <div className="font-game text-base font-bold text-[var(--ink)]">
-              {g.toast.entry.jp ? (
-                <>
-                  <span className="font-jp">{g.toast.entry.jp}</span>{' '}
-                  <span className="text-xs font-normal text-[var(--sage)]">
-                    {g.toast.entry.kana !== g.toast.entry.jp ? `${g.toast.entry.kana} · ` : ''}
-                    {g.toast.entry.word}
-                  </span>
-                </>
-              ) : (
-                g.toast.entry.word
-              )}{' '}
-              <span className="text-xs font-normal text-[var(--muted)]">{g.toast.entry.pos}.</span>
-            </div>
-            <div className="font-vi text-sm font-semibold text-[var(--ink-soft)]">{g.toast.entry.vi}</div>
-            {g.toast.entry.meaning && (
-              <div className="truncate text-xs text-[var(--muted)]">{g.toast.entry.meaning}</div>
-            )}
-          </div>
-        )}
-
         {/* Countdown */}
         {g.phase === 'countdown' && !g.paused && (
           <div className="pointer-events-none absolute inset-0 z-30 flex flex-col items-center justify-center">
             <div className="paper-card px-10 py-8 text-center shadow-[var(--shadow)]">
-              <div className="eyebrow mb-2">the world can wait</div>
+              <div className="eyebrow mb-2">THẾ GIỚI CÓ THỂ CHỜ</div>
               <div className="text-sm font-bold tracking-[0.2em] text-[var(--sage)] uppercase">
-                Stage {g.stageIndex + 1} · {g.stage.name}
+                Mốc {g.stageIndex + 1} · {g.stage.name}
               </div>
               <div
                 key={Math.ceil(g.phaseTimer)}
@@ -989,7 +962,7 @@ export default function Game({ deckId, startStage, settings, onSettingsChange, o
                 {Math.ceil(g.phaseTimer)}
               </div>
               <div className="mt-2 text-xs text-[var(--muted)]">
-                {g.stage.queue.length} words · max {g.stage.maxActive} on screen
+                {g.stage.queue.length} từ ở mốc này · tối đa {g.stage.maxActive} từ cùng lúc
               </div>
             </div>
           </div>
@@ -1001,9 +974,11 @@ export default function Game({ deckId, startStage, settings, onSettingsChange, o
             <div className="pop-in paper-card px-10 py-8 text-center shadow-[var(--shadow)]">
               <div className="text-5xl">🌿</div>
               <div className="mt-2 text-4xl font-extrabold tracking-tight text-[var(--sage-deep)]">
-                Stage {g.stageIndex + 1} clear
+                Xong mốc {g.stageIndex + 1}
               </div>
-              <div className="mt-2 text-sm text-[var(--ink-soft)]">A little quieter sky… then the rain thickens.</div>
+              <div className="font-vi mt-2 text-sm text-[var(--ink-soft)]">
+                Bầu trời lặng hơn một chút… rồi mưa lại dày thêm.
+              </div>
             </div>
           </div>
         )}
@@ -1012,18 +987,18 @@ export default function Game({ deckId, startStage, settings, onSettingsChange, o
         {g.paused && !ended && (
           <Overlay>
             <div className="text-4xl">☁️</div>
-            <p className="eyebrow mt-2">the world can wait</p>
-            <h2 className="mt-1 text-4xl font-extrabold tracking-tight text-[var(--ink)]">A little breather.</h2>
-            <p className="mt-1 text-sm text-[var(--ink-soft)]">Your words are enjoying the view.</p>
+            <p className="eyebrow mt-2">THẾ GIỚI CÓ THỂ CHỜ</p>
+            <h2 className="mt-1 text-4xl font-extrabold tracking-tight text-[var(--ink)]">Tạm nghỉ một chút.</h2>
+            <p className="font-vi mt-1 text-sm text-[var(--ink-soft)]">Từ vựng của bạn đang ngắm cảnh.</p>
             <div className="mt-5 flex flex-wrap justify-center gap-3">
               <Btn primary onClick={() => setPaused(false)}>
-                ▶ Back to the journey
+                ▶ Trở lại chuyến đi
               </Btn>
-              <Btn onClick={onRestart}>↻ Restart</Btn>
-              <Btn onClick={onMenu}>☰ Deck select</Btn>
+              <Btn onClick={onRestart}>↻ Chơi lại</Btn>
+              <Btn onClick={onMenu}>☰ Chọn bộ thẻ</Btn>
             </div>
             <div className="mt-6 rounded-2xl border border-[var(--line)] bg-[var(--cream)]/60 p-4">
-              <div className="eyebrow mb-3 text-left">Settings</div>
+              <div className="eyebrow mb-3 text-left">CÀI ĐẶT</div>
               <SettingsPanel settings={settings} onChange={onSettingsChange} compact />
             </div>
           </Overlay>
@@ -1033,52 +1008,56 @@ export default function Game({ deckId, startStage, settings, onSettingsChange, o
         {ended && (
           <Overlay wide>
             <div className="text-5xl">{g.phase === 'victory' ? '🍃' : '🍂'}</div>
-            <p className="eyebrow mt-2">{g.phase === 'victory' ? 'all flight paths clear' : 'the words got through'}</p>
-            <h2 className="mt-1 text-4xl font-extrabold tracking-tight text-[var(--ink)] sm:text-5xl">
-              {g.phase === 'victory' ? 'Beautifully done.' : 'A soft landing.'}
+            <p className="eyebrow mt-2">
+              {g.phase === 'victory' ? 'TẤT CẢ CÁC MỐC ĐÃ SẠCH' : 'TỪ ĐÃ LỌT XUỐNG ĐÁY'}
+            </p>
+            <h2 className="font-vi mt-1 text-4xl font-extrabold tracking-tight text-[var(--ink)] sm:text-5xl">
+              {g.phase === 'victory' ? 'Xong đẹp lắm.' : 'Hạ cánh êm ái.'}
             </h2>
-            <p className="mt-2 text-sm text-[var(--ink-soft)]">
+            <p className="font-vi mt-2 text-sm text-[var(--ink-soft)]">
               {g.phase === 'victory'
-                ? `You cleared all ${STAGE_COUNT} stages of ${g.deck.name}.`
-                : `The rain reached the ground on stage ${g.stageIndex + 1}. Take a breath, then try again.`}
+                ? `Bạn đã vượt hết ${STAGE_COUNT} mốc của ${g.deck.nameVi || g.deck.name}.`
+                : `Mưa đã chạm đất ở mốc ${g.stageIndex + 1}. Thở một nhịp, rồi chơi lại nhé.`}
             </p>
             {g.newBest && g.score > 0 && (
-              <div className="mt-2 inline-block rounded-full bg-[var(--gold-soft)] px-3 py-1 text-sm font-bold text-[var(--ink)]">
-                ⭐ New best score
+              <div className="font-vi mt-2 inline-block rounded-full bg-[var(--gold-soft)] px-3 py-1 text-sm font-bold text-[var(--ink)]">
+                ⭐ Điểm cao nhất mới
               </div>
             )}
             <div className="mt-5 grid grid-cols-3 gap-2 sm:grid-cols-6">
-              <Result label="Score" value={g.score.toLocaleString()} />
-              <Result label="Words" value={g.destroyed} />
-              <Result label="Missed" value={g.missed} />
-              <Result label="Max combo" value={`x${g.maxCombo}`} />
-              <Result label="Accuracy" value={`${accuracy}%`} />
-              <Result label="WPM" value={wpm} />
+              <Result label="Điểm" value={g.score.toLocaleString()} />
+              <Result label="Đã bắn" value={g.destroyed} />
+              <Result label="Bị lọt" value={g.missed} />
+              <Result label="Chuỗi nhất" value={`x${g.maxCombo}`} />
+              <Result label="Chính xác" value={`${accuracy}%`} />
+              <Result label="Từ/phút" value={wpm} />
             </div>
 
             {(g.learned.length > 0 || g.missedWords.length > 0) && (
               <div className="mt-5 grid gap-4 text-left sm:grid-cols-2">
                 <div>
                   <div className="eyebrow mb-2 text-[var(--sage)]">
-                    ✓ Words shot · Từ đã bắn ({g.learned.length})
+                    ✓ TỪ ĐÃ BẮN ({g.learned.length})
                   </div>
                   <div className="grid max-h-48 gap-1.5 overflow-y-auto pr-1">
                     {g.learned.length ? (
                       g.learned.map((l) => <WordRow key={`${l.jp ?? ''}${l.word}`} entry={l} onSpeak={say} />)
                     ) : (
-                      <div className="text-sm text-[var(--muted)]">No words yet — try again!</div>
+                      <div className="font-vi text-sm text-[var(--muted)]">Chưa có từ nào — thử lại nhé!</div>
                     )}
                   </div>
                 </div>
                 <div>
                   <div className="eyebrow mb-2 text-[var(--rose)]">
-                    ✗ Words missed · Từ bị lọt ({g.missedWords.length})
+                    ✗ TỪ BỊ LỌT ({g.missedWords.length})
                   </div>
                   <div className="grid max-h-48 gap-1.5 overflow-y-auto pr-1">
                     {g.missedWords.length ? (
                       g.missedWords.map((l) => <WordRow key={`${l.jp ?? ''}${l.word}`} entry={l} onSpeak={say} miss />)
                     ) : (
-                      <div className="text-sm text-[var(--muted)]">Perfect defense — nothing slipped through! 🛡️</div>
+                      <div className="font-vi text-sm text-[var(--muted)]">
+                        Vẫn còn nguyên — không từ nào lọt! 🛡️
+                      </div>
                     )}
                   </div>
                 </div>
@@ -1087,25 +1066,137 @@ export default function Game({ deckId, startStage, settings, onSettingsChange, o
 
             <div className="mt-6 flex flex-wrap justify-center gap-3">
               <Btn primary onClick={onRestart}>
-                ↻ Play Again
+                ↻ Chơi lại
               </Btn>
-              <Btn onClick={onMenu}>☰ Deck Select</Btn>
+              <Btn onClick={onMenu}>☰ Chọn bộ thẻ</Btn>
               <Btn onClick={onShare} disabled={shareState === 'working'}>
                 {shareState === 'working'
-                  ? '⏳ Creating…'
+                  ? '⏳ Đang tạo ảnh…'
                   : shareState === 'downloaded'
-                    ? '✅ Image saved'
+                    ? '✅ Đã lưu ảnh'
                     : shareState === 'shared'
-                      ? '✅ Shared'
+                      ? '✅ Đã chia sẻ'
                       : shareState === 'failed'
-                        ? '⚠️ Try again'
-                        : '📸 Share score image'}
+                        ? '⚠️ Thử lại'
+                        : '📸 Chia sẻ ảnh điểm'}
               </Btn>
             </div>
-            <p className="mt-3 text-xs text-[var(--muted)]">Press Enter to play again · tap 🔊 to hear a word</p>
+            <p className="font-vi mt-3 text-xs text-[var(--muted)]">
+              Nhấn Enter để chơi lại · nhấn 🔊 để nghe lại từ
+            </p>
           </Overlay>
         )}
       </div>
+      </div>
+
+      {/* ---------- Bottom rail ---------- */}
+      <footer className="relative z-30 shrink-0 px-4 pt-1 pb-4 sm:px-6">
+        <div className="mx-auto flex max-w-7xl flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          {/* journey rail */}
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center justify-between text-[11px] font-semibold text-[var(--ink-soft)]">
+              <span className="flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-full border border-[var(--muted)]" /> Khởi hành
+              </span>
+              <span className="flex items-center gap-1.5">
+                Trạm cuối
+                <span className="h-2 w-2 rounded-full bg-[var(--sage)]" />
+              </span>
+            </div>
+            <div className="relative mt-2 h-px w-full bg-[var(--line)]">
+              <div
+                className="absolute top-0 left-0 h-px bg-[var(--sage)] transition-[width] duration-500"
+                style={{ width: `${clamp01((g.stageIndex + stageProgress) / STAGE_COUNT) * 100}%` }}
+              />
+              <span
+                className="absolute top-1/2 grid h-5 w-5 place-items-center rounded-full border border-[var(--line)] bg-[var(--paper)] text-[9px] shadow-sm transition-all duration-500"
+                style={{
+                  left: `${clamp01((g.stageIndex + stageProgress) / STAGE_COUNT) * 100}%`,
+                  transform: 'translate(-50%,-50%)',
+                }}
+              >
+                {g.deck.icon}
+              </span>
+            </div>
+            <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-[var(--muted)]">
+              <span className={`flex items-center gap-1.5 ${g.heartAnim > 0 ? 'heart-loss' : ''}`}>
+                <span aria-hidden="true">♡</span>
+                <span className="font-game font-bold text-[var(--ink-soft)]">{g.lives}/3</span> mạng
+              </span>
+              <span className="flex items-center gap-1">
+                {Array.from({ length: 3 }, (_, i) => (
+                  <span
+                    key={i}
+                    className={`text-[12px] transition-all duration-300 ${
+                      i < g.lives ? 'opacity-100' : 'scale-75 opacity-25 grayscale'
+                    }`}
+                  >
+                    ❤️
+                  </span>
+                ))}
+              </span>
+              <span className="hidden sm:inline">
+                {g.lives === 3 ? 'Bầu trời vẫn êm đẹp' : g.lives === 2 ? 'Một từ vừa lọt' : 'Còn một nhịp thở'}
+              </span>
+            </div>
+          </div>
+
+          {/* readout */}
+          <div className="flex items-end gap-5 border-t border-[var(--line)] pt-3 lg:border-t-0 lg:pt-0 lg:pl-6">
+            <div className="text-center">
+              <div className="flex items-baseline justify-center gap-1">
+                <span className="font-game text-[34px] leading-none font-black text-[var(--sage-deep)]">
+                  {String(g.score).padStart(4, '0')}
+                </span>
+                <span className="text-[11px] font-bold text-[var(--muted)]">điểm</span>
+              </div>
+              <div className="eyebrow mt-1 text-[8px]">NHẸ NHÀNG, ĐỪNG VỘI</div>
+              <div className="mt-1.5 flex justify-center gap-1">
+                {Array.from({ length: 16 }, (_, i) => (
+                  <span
+                    key={i}
+                    className={`h-2.5 w-1 rounded-full ${
+                      i / 16 < clamp01(stageProgress) ? 'bg-[var(--sage)]' : 'bg-[var(--line)]'
+                    }`}
+                  />
+                ))}
+              </div>
+            </div>
+            <div className="hidden text-center sm:block">
+              <div className="font-game text-[34px] leading-none font-black text-[var(--ink)]">
+                {String(g.stageIndex + 1).padStart(2, '0')}
+                <span className="text-[16px] text-[var(--muted)]">/{STAGE_COUNT}</span>
+              </div>
+              <div className="eyebrow mt-1 text-[8px]">MỐC {g.stage.name.toUpperCase()}</div>
+              <div className="mt-1.5 font-game text-[11px] text-[var(--ink-soft)]">
+                {Math.round(clamp01(stageProgress) * g.stage.queue.length)}/{g.stage.queue.length} từ · {wpm} wpm ·{' '}
+                {accuracy}%
+              </div>
+            </div>
+          </div>
+
+          {/* actions */}
+          <div className="flex items-stretch gap-3">
+            <button onClick={onMenu} className="btn-ghost px-5 py-3.5 text-sm">
+              <span className="mr-2" aria-hidden="true">↓</span>
+              Rời tuyến
+            </button>
+            <button
+              onClick={() => setPaused(!g.paused)}
+              className="btn-sage flex items-center gap-3 px-7 py-3.5 text-[15px]"
+            >
+              <span className="text-base">{g.paused ? '▶' : '❚❚'}</span>
+              <span className="text-left leading-tight">
+                {g.paused ? 'TIẾP TỤC' : 'TẠM DỪNG'}
+                <span className="block text-[9px] font-medium tracking-widest opacity-70">
+                  {g.paused ? 'TRỞ LẠI TUYẾN' : 'MỘT CHÚT NGHỈ'}
+                </span>
+              </span>
+              <span className="rounded-md border border-white/25 px-1.5 py-0.5 font-mono text-[10px]">Esc</span>
+            </button>
+          </div>
+        </div>
+      </footer>
 
       {showKeyboard && <VirtualKeyboard onChar={handleChar} onBackspace={handleBackspace} />}
     </div>
@@ -1219,22 +1310,12 @@ function IconBtn({
       aria-label={title}
       className={`flex h-8 w-8 items-center justify-center rounded-lg border text-sm transition-colors ${
         active
-          ? 'border-[var(--sage)]/40 bg-[var(--sage-soft)] text-[var(--sage-deep)] hover:bg-[var(--sage-soft)]'
-          : 'border-[var(--line)] bg-[var(--cream)] text-[var(--muted)] hover:bg-white'
+          ? 'border-[var(--sage)]/60 bg-[var(--sage)] text-[var(--paper)] hover:bg-[var(--sage-deep)]'
+          : 'border-[var(--line)] bg-[var(--paper)] text-[var(--ink)] hover:bg-[var(--paper-soft)]'
       }`}
     >
       {children}
     </button>
-  );
-}
-
-function Stat({ label, value, sub, highlight }: { label: string; value: string | number; sub?: string; highlight?: boolean }) {
-  return (
-    <div className="text-center leading-tight">
-      <div className="eyebrow text-[8px]">{label}</div>
-      <div className={`font-game text-base font-black sm:text-lg ${highlight ? 'text-[var(--gold)]' : 'text-[var(--ink)]'}`}>{value}</div>
-      {sub && <div className="text-[10px] text-[var(--sage)]">{sub}</div>}
-    </div>
   );
 }
 
