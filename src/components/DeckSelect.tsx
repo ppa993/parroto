@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
-import { DECKS, STAGE_COUNT, STAGE_NAMES, deckLang, getBest, type WordEntry } from '../data/decks';
+import { DECKS, STAGE_COUNT, deckLang, getBest, type WordEntry } from '../data/decks';
 import type { Settings } from '../lib/settings';
 import { unlockAudio } from '../lib/sfx';
-import { speak, ttsSupported, unlockSpeech } from '../lib/speech';
+import { speak, unlockSpeech } from '../lib/speech';
 import SettingsPanel from './SettingsPanel';
 
 type Props = {
@@ -36,10 +36,9 @@ const HELP_STEPS: [string, string, string][] = [
 export default function DeckSelect({ initialDeck, settings, onSettingsChange, onStart }: Props) {
   const decks = DECKS.filter((d) => deckLang(d) === settings.lang);
   const [pickedId, setDeckId] = useState(initialDeck ?? decks[0].id);
-  const [stage, setStage] = useState(0);
-  const [peek, setPeek] = useState<WordEntry | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [peek, setPeek] = useState<WordEntry | null>(null);
   const deck = decks.find((d) => d.id === pickedId) ?? decks[0];
   const deckId = deck.id;
   const vi = DECK_VI[deck.id] ?? { level: 'Từ vựng', desc: 'Một bộ thẻ từ vựng.' };
@@ -59,14 +58,19 @@ export default function DeckSelect({ initialDeck, settings, onSettingsChange, on
     if (lang === settings.lang) return;
     onSettingsChange({ lang });
     setDeckId(DECKS.find((d) => deckLang(d) === lang)!.id);
-    setPeek(null);
   };
 
   const start = useCallback(() => {
     unlockSpeech();
     unlockAudio();
-    onStart(deckId, stage);
-  }, [deckId, stage, onStart]);
+    onStart(deckId, 0);
+  }, [deckId, onStart]);
+
+  const hear = (word: WordEntry) => {
+    setPeek(word);
+    if (word.kana) speak(word.kana, { accent: settings.accent, rate: settings.rate, lang: 'ja' });
+    else speak(word.word, { accent: settings.accent, rate: settings.rate, voiceURI: settings.voiceURI });
+  };
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -91,20 +95,11 @@ export default function DeckSelect({ initialDeck, settings, onSettingsChange, on
       if (e.key === 'ArrowUp') {
         e.preventDefault();
         setDeckId(decks[(idx - 1 + decks.length) % decks.length].id);
-        setPeek(null);
       }
-      if (e.key === 'ArrowRight') setStage((s) => Math.min(STAGE_COUNT - 1, s + 1));
-      if (e.key === 'ArrowLeft') setStage((s) => Math.max(0, s - 1));
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [deckId, decks, start, helpOpen]);
-
-  const hear = (wd: WordEntry) => {
-    setPeek(wd);
-    if (wd.kana) speak(wd.kana, { accent: settings.accent, rate: settings.rate, lang: 'ja' });
-    else speak(wd.word, { accent: settings.accent, rate: settings.rate, voiceURI: settings.voiceURI });
-  };
 
   return (
     <div className="relative z-10 flex h-full w-full flex-col overflow-hidden">
@@ -143,12 +138,12 @@ export default function DeckSelect({ initialDeck, settings, onSettingsChange, on
           </div>
           <span className="hidden h-7 w-px bg-[var(--line)] sm:block" />
           <button
-            onClick={() => onSettingsChange({ sfx: !settings.sfx, tts: !settings.tts ? true : settings.tts })}
-            className="grid h-9 w-9 place-items-center rounded-full border border-[var(--line)] bg-[var(--paper)] text-sm hover:bg-white"
-            title={settings.sfx ? 'Bật tiếng' : 'Tắt tiếng'}
-            aria-label="Âm thanh"
+            onClick={() => setSettingsOpen(true)}
+            className="grid h-9 w-9 place-items-center rounded-full border border-[var(--line)] bg-[var(--paper)] text-sm transition-colors hover:border-[var(--sage)] hover:bg-[var(--sage-soft)] hover:text-[var(--sage-deep)]"
+            title="Cài đặt"
+            aria-label="Mở cài đặt"
           >
-            {settings.sfx ? '🔊' : '🔇'}
+            ⚙
           </button>
         </div>
       </header>
@@ -221,92 +216,6 @@ export default function DeckSelect({ initialDeck, settings, onSettingsChange, on
                   </p>
                 </div>
 
-                {/* Deck rail */}
-                <div className="slide-up" style={{ animationDelay: '160ms' }}>
-                  <div className="mb-2 flex items-end justify-between">
-                    <p className="eyebrow">01 · CHỌN TUYẾN ĐƯỜNG</p>
-                    <p className="text-[11px] text-[var(--ink-soft)]">{decks.length} bộ thẻ</p>
-                  </div>
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    {decks.map((d, i) => {
-                      const active = d.id === deckId;
-                      const dvi = DECK_VI[d.id] ?? { level: 'Từ vựng', desc: '' };
-                      return (
-                        <button
-                          key={d.id}
-                          onClick={() => {
-                            setDeckId(d.id);
-                            setPeek(null);
-                          }}
-                          style={{ animationDelay: `${i * 50}ms` }}
-                          className={`slide-up flex items-center gap-3 rounded-2xl border p-3 text-left transition-all ${
-                            active
-                              ? 'border-[var(--sage)] bg-[var(--paper)] shadow-[0_0_0_3px_rgba(95,122,92,0.12),var(--shadow-sm)]'
-                              : 'border-white/70 bg-[rgba(251,248,240,0.75)] hover:bg-[var(--paper)] hover:shadow-[var(--shadow-sm)]'
-                          }`}
-                        >
-                          <span
-                            className={`grid h-11 w-11 shrink-0 place-items-center rounded-xl text-xl ${
-                              active ? 'bg-[var(--sage-soft)]' : 'bg-[var(--cream-deep)]'
-                            }`}
-                          >
-                            {d.icon}
-                          </span>
-                          <span className="min-w-0 flex-1">
-                            <span className="flex flex-wrap items-center gap-1.5">
-                              <span className="text-[14px] font-bold text-[var(--ink)]">{d.nameVi || d.name}</span>
-                              <span className="rounded-full bg-[var(--cream-deep)] px-1.5 py-0.5 text-[9px] font-bold tracking-wide text-[var(--ink-soft)] uppercase">
-                                {dvi.level}
-                              </span>
-                            </span>
-                            <span className="font-vi mt-0.5 block truncate text-[11px] text-[var(--muted)]">{dvi.desc}</span>
-                          </span>
-                          <span className="font-game text-[12px] font-bold text-[var(--gold)]">
-                            {getBest(d.id) || '—'}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-
-              {/* ---- Right column ---- */}
-              <div className="slide-up space-y-3" style={{ animationDelay: '90ms' }}>
-                {/* Route card (stage list, like the coastal line panel) */}
-                <div className="rounded-3xl border border-white/70 bg-[rgba(251,248,240,0.94)] p-4 shadow-[var(--shadow-sm)] backdrop-blur">
-                  <div className="flex items-center justify-between">
-                    <p className="eyebrow text-[8px]">TUYẾN {deck.nameVi || deck.name}</p>
-                    <span className="text-[var(--muted)]" aria-hidden="true">⤢</span>
-                  </div>
-                  <div className="mt-3 flex items-center justify-between gap-1">
-                    {Array.from({ length: STAGE_COUNT }, (_, i) => (
-                      <button
-                        key={i}
-                        onClick={() => setStage(i)}
-                        className={`flex flex-col items-center gap-1 rounded-xl px-1.5 py-1.5 transition-all ${
-                          stage === i ? 'bg-[var(--sage-soft)]' : 'hover:bg-[var(--cream)]'
-                        }`}
-                      >
-                        <span
-                          className={`h-3.5 w-3.5 rounded-full border-2 transition-all ${
-                            i <= stage ? 'border-[var(--sage)] bg-[var(--sage)]' : 'border-[var(--line)] bg-white'
-                          } ${stage === i ? 'ring-4 ring-[var(--sage)]/20' : ''}`}
-                        />
-                        <span
-                          className={`text-[10px] font-bold ${stage === i ? 'text-[var(--sage-deep)]' : 'text-[var(--muted)]'}`}
-                        >
-                          {STAGE_NAMES[i]}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                  <div className="mt-3 h-px bg-[var(--line)]" />
-                  <p className="font-vi mt-2 text-[11px] text-[var(--muted)]">
-                    Mốc {stage + 1} bắt đầu · tốc độ và mật độ tăng dần ở mỗi chặng.
-                  </p>
-                </div>
-
                 {/* Word preview */}
                 <div className="rounded-3xl border border-white/35 bg-[rgba(251,248,240,0.94)] p-4 shadow-[var(--shadow-sm)] backdrop-blur">
                   <div className="mb-2 flex items-center justify-between">
@@ -325,49 +234,44 @@ export default function DeckSelect({ initialDeck, settings, onSettingsChange, on
                         </button>
                         <div className="min-w-0 leading-tight">
                           <div>
-                            {peek.jp && <span className="font-jp mr-1.5 text-[17px] font-bold text-[var(--ink)]">{peek.jp}</span>}
+                            {peek.jp && <span className="font-jp mr-1.5 text-[17px] font-bold text-[var(--paper)]">{peek.jp}</span>}
                             {peek.jp && peek.kana !== peek.jp && (
-                              <span className="font-jp mr-1.5 text-[11px] text-[var(--sage-deep)]">{peek.kana}</span>
+                              <span className="font-jp mr-1.5 text-[11px] text-[var(--paper-soft)]">{peek.kana}</span>
                             )}
-                            <span className="font-game text-[13px] font-bold text-[var(--sage-deep)]">{peek.word}</span>
-                            <span className="text-[11px] text-[var(--muted)]"> ({peek.pos})</span>
+                            <span className="font-game text-[13px] font-bold text-[var(--paper-soft)]">{peek.word}</span>
+                            <span className="text-[11px] text-[#365963]"> ({peek.pos})</span>
                           </div>
-                          <div className="font-vi text-[13px] font-semibold text-[var(--ink-soft)]">— {peek.vi}</div>
+                          <div className="font-vi text-[13px] font-semibold text-[var(--paper-soft)]">— {peek.vi}</div>
                         </div>
                       </div>
                     ) : (
-                      <div className="font-vi py-1.5 text-[11px] text-[#365963]">
-                        Chạm vào một từ để nghe cách đọc và xem nghĩa
-                      </div>
+                      <div className="font-vi py-1.5 text-[11px] text-[#365963]">Chạm vào một từ để nghe cách đọc và xem nghĩa</div>
                     )}
                   </div>
-                  <div className="scrollbar-none flex max-h-32 flex-wrap gap-1.5 overflow-y-auto pr-1">
-                    {deck.words.slice(0, 60).map((wd) => (
+                  <div className="scrollbar-none flex max-h-64 flex-wrap gap-1.5 overflow-y-auto pr-1">
+                    {deck.words.slice(0, 60).map((word) => (
                       <button
-                        key={`${wd.jp ?? ''}${wd.word}`}
-                        title={wd.meaning ? `${wd.vi} — ${wd.meaning}` : wd.jp ? `${wd.word} — ${wd.vi}` : wd.vi}
-                        onClick={() => hear(wd)}
-                        className={`${wd.jp ? 'font-jp' : 'font-game'} rounded-lg px-2 py-0.5 text-[11px] transition-colors ${
-                          peek === wd
-                            ? 'bg-[var(--sage)] text-[var(--paper)]'
-                            : 'bg-[var(--cream)] text-[#294d57] hover:bg-[var(--sage-soft)]'
+                        key={`${word.jp ?? ''}${word.word}`}
+                        title={word.jp ? `${word.word} — ${word.vi}` : word.vi}
+                        onClick={() => hear(word)}
+                        className={`${word.jp ? 'font-jp' : 'font-game'} rounded-lg bg-[var(--cream)] px-2 py-0.5 text-[11px] text-[#294d57] transition-colors hover:bg-[var(--sage-soft)] ${
+                          peek === word ? 'bg-[var(--sage)] text-[var(--paper)]' : ''
                         }`}
                       >
-                        {wd.jp ?? wd.word}
+                        {word.jp ?? word.word}
                       </button>
                     ))}
-                    {deck.words.length > 60 && (
-                      <span className="self-center px-1 text-[10px] text-[var(--muted)]">
-                        +{deck.words.length - 60} từ nữa
-                      </span>
-                    )}
+                    {deck.words.length > 60 && <span className="self-center px-1 text-[10px] text-[var(--muted)]">+{deck.words.length - 60} từ nữa</span>}
                   </div>
                 </div>
+              </div>
 
-                {/* Language + settings */}
+              {/* ---- Right column ---- */}
+              <div className="slide-up space-y-3" style={{ animationDelay: '90ms' }}>
+                {/* Language selection */}
                 <div className="rounded-3xl border border-white/70 bg-[rgba(251,248,240,0.94)] p-4 shadow-[var(--shadow-sm)] backdrop-blur">
-                  <p className="eyebrow mb-2 text-[8px]">02 · NGÔN NGỮ & ÂM THANH</p>
-                  <div className="mb-3 inline-flex rounded-2xl border border-[var(--line)] bg-[var(--cream)] p-1">
+                  <p className="eyebrow mb-2 text-[8px]">01 · CHỌN NGÔN NGỮ</p>
+                  <div className="inline-flex rounded-2xl border border-[var(--line)] bg-[var(--cream)] p-1">
                     {(
                       [
                         ['en', '🇬🇧', 'Tiếng Anh'],
@@ -387,22 +291,46 @@ export default function DeckSelect({ initialDeck, settings, onSettingsChange, on
                       </button>
                     ))}
                   </div>
-                  <button
-                    onClick={() => setSettingsOpen(true)}
-                    className="btn-ghost flex w-full items-center justify-between px-3 py-2.5 text-left text-sm"
-                  >
-                    <span className="flex items-center gap-2">
-                      <span aria-hidden="true">⚙</span>
-                      <span>Thêm cài đặt</span>
-                    </span>
-                    <span aria-hidden="true">↗</span>
-                  </button>
-                  {!ttsSupported && (
-                    <p className="font-vi mt-3 text-[11px] text-[var(--rose)]">
-                      Trình duyệt này chưa hỗ trợ đọc từ — thử Chrome, Edge hoặc Safari nhé.
-                    </p>
-                  )}
                 </div>
+
+                {/* Play-card selection */}
+                <div className="slide-up" style={{ animationDelay: '160ms' }}>
+                  <div className="mb-2 flex items-end justify-between">
+                    <p className="eyebrow">02 · CHỌN BỘ THẺ ĐỂ CHƠI</p>
+                    <p className="text-[11px] text-[var(--ink-soft)]">{decks.length} bộ thẻ</p>
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {decks.map((d, i) => {
+                      const active = d.id === deckId;
+                      const dvi = DECK_VI[d.id] ?? { level: 'Từ vựng', desc: '' };
+                      return (
+                        <button
+                          key={d.id}
+                          onClick={() => setDeckId(d.id)}
+                          style={{ animationDelay: `${i * 50}ms` }}
+                          className={`slide-up flex items-center gap-3 rounded-2xl border p-3 text-left transition-all ${
+                            active
+                              ? 'border-[var(--sage)] bg-[var(--paper)] shadow-[0_0_0_3px_rgba(95,122,92,0.12),var(--shadow-sm)]'
+                              : 'border-white/70 bg-[rgba(251,248,240,0.75)] hover:bg-[var(--paper)] hover:shadow-[var(--shadow-sm)]'
+                          }`}
+                        >
+                          <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-xl text-xl ${active ? 'bg-[var(--sage-soft)]' : 'bg-[var(--cream-deep)]'}`}>
+                            {d.icon}
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="flex flex-wrap items-center gap-1.5">
+                              <span className="text-[14px] font-bold text-[var(--ink)]">{d.nameVi || d.name}</span>
+                              <span className="rounded-full bg-[var(--cream-deep)] px-1.5 py-0.5 text-[9px] font-bold tracking-wide text-[var(--ink-soft)] uppercase">{dvi.level}</span>
+                            </span>
+                            <span className="font-vi mt-0.5 block truncate text-[11px] text-[var(--muted)]">{dvi.desc}</span>
+                          </span>
+                          <span className="font-game text-[12px] font-bold text-[var(--gold)]">{getBest(d.id) || '—'}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
               </div>
             </div>
           </div>
@@ -426,11 +354,11 @@ export default function DeckSelect({ initialDeck, settings, onSettingsChange, on
             <div className="relative mt-2 h-px w-full bg-[var(--line)]">
               <div
                 className="absolute top-0 left-0 h-px bg-[var(--sage)]"
-                style={{ width: `${((stage + 1) / STAGE_COUNT) * 100}%` }}
+                style={{ width: `${(1 / STAGE_COUNT) * 100}%` }}
               />
               <span
                 className="absolute top-1/2 grid h-5 w-5 -translate-y-1/2 place-items-center rounded-full border border-[var(--line)] bg-[var(--paper)] text-[9px] shadow-sm transition-all"
-                style={{ left: `${((stage + 1) / STAGE_COUNT) * 100}%`, transform: 'translate(-50%,-50%)' }}
+                style={{ left: `${(1 / STAGE_COUNT) * 100}%`, transform: 'translate(-50%,-50%)' }}
               >
                 {deck.icon}
               </span>
@@ -450,7 +378,7 @@ export default function DeckSelect({ initialDeck, settings, onSettingsChange, on
             </div>
             <div className="text-center">
               <div className="font-game text-[34px] leading-none font-black text-[var(--ink)]">
-                {String(stage + 1).padStart(2, '0')}
+                01
                 <span className="text-[16px] text-[var(--muted)]">/{STAGE_COUNT}</span>
               </div>
               <div className="eyebrow text-[8px]">MỐC BẮT ĐẦU</div>
@@ -515,9 +443,9 @@ export default function DeckSelect({ initialDeck, settings, onSettingsChange, on
               ))}
             </ol>
             {settings.lang === 'ja' && (
-              <p className="font-vi mt-3 rounded-xl bg-[var(--cream)] px-3 py-2 text-[12px] text-[var(--ink-soft)]">
-                Tiếng Nhật: gõ <b>romaji</b>, ví dụ 寿司 → <code className="rounded bg-[var(--cream-deep)] px-1">sushi</code>.
-                Shì/si, tsu/tu đều được · ん = n/nn · っ = gấp đôi phụ âm · ー = <code className="rounded bg-[var(--cream-deep)] px-1">-</code>
+              <p className="font-vi mt-3 rounded-xl bg-[var(--cream)] px-3 py-2 text-[12px] text-[var(--paper)]">
+                Tiếng Nhật: gõ <b>romaji</b>, ví dụ 寿司 → <code className="rounded bg-[var(--cream-deep)] px-1 text-[var(--paper)]">sushi</code>.
+                Shì/si, tsu/tu đều được · ん = n/nn · っ = gấp đôi phụ âm · ー = <code className="rounded bg-[var(--cream-deep)] px-1 text-[var(--paper)]">-</code>
               </p>
             )}
             <button onClick={() => setHelpOpen(false)} className="btn-sage mt-5 w-full py-3 text-sm">
