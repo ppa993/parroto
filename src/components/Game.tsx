@@ -72,6 +72,13 @@ const BASE_ZONE = 110; // px from bottom where words hit the base
 const CHAR_W = 14;
 const BURST_LIFE = 2.2;
 const COLORS = ['#fbbf24', '#f472b6', '#22d3ee', '#a78bfa', '#34d399', '#fb7185'];
+const stageLabels: Record<string, string> = {
+  Drizzle: 'Mưa phùn',
+  Shower: 'Mưa rào',
+  Downpour: 'Mưa lớn',
+  Thunderstorm: 'Giông bão',
+  Monsoon: 'Mưa mùa',
+};
 
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
 const clamp01 = (v: number) => clamp(v, 0, 1);
@@ -562,7 +569,7 @@ export default function Game({ deckId, startStage, settings, onSettingsChange, o
               id: nextId(),
               x: g.width / 2,
               y: g.height / 2 + 70,
-              text: `Stage bonus +${bonus}`,
+              text: `Thưởng màn +${bonus}`,
               life: 2,
               color: '#34d399',
             });
@@ -616,25 +623,25 @@ export default function Game({ deckId, startStage, settings, onSettingsChange, o
             onMouseDown={(e) => e.preventDefault()}
             onClick={onMenu}
             className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-sm text-slate-300 hover:bg-white/10"
-            title="Back to decks"
+            title="Quay lại danh sách bộ từ"
           >
-            ← Decks
+            ← Bộ từ
           </button>
           <div className="hidden items-center gap-2 sm:flex">
             <span className="text-2xl">{g.deck.icon}</span>
             <div className="leading-tight">
-              <div className="text-sm font-bold text-white">{g.deck.name}</div>
+              <div className="text-sm font-bold text-white">{g.deck.nameVi}</div>
               <div className="font-vi text-[11px] text-slate-400">{g.deck.nameVi}</div>
             </div>
           </div>
         </div>
 
         <div className="flex items-center gap-4 sm:gap-5">
-          <Stat label="Stage" value={`${g.stageIndex + 1}/${STAGE_COUNT}`} sub={g.stage.name} />
-          <Stat label="Score" value={g.score.toLocaleString()} highlight />
+          <Stat label="Màn" value={`${g.stageIndex + 1}/${STAGE_COUNT}`} sub={stageLabels[g.stage.name] ?? g.stage.name} />
+          <Stat label="Điểm" value={g.score.toLocaleString()} highlight />
           <Stat label="Combo" value={`x${g.combo}`} />
           <div className="hidden md:block">
-            <Stat label="WPM · Acc" value={`${wpm} · ${accuracy}%`} />
+            <Stat label="WPM · Độ chính xác" value={`${wpm} · ${accuracy}%`} />
           </div>
         </div>
 
@@ -654,25 +661,25 @@ export default function Game({ deckId, startStage, settings, onSettingsChange, o
           <IconBtn
             active={settings.tts}
             onClick={() => onSettingsChange({ tts: !settings.tts })}
-            title={settings.tts ? 'Read aloud: ON' : 'Read aloud: OFF'}
+            title={settings.tts ? 'Đọc thành tiếng: BẬT' : 'Đọc thành tiếng: TẮT'}
           >
             {settings.tts ? '🔊' : '🔇'}
           </IconBtn>
           <IconBtn
             active={settings.showVi}
             onClick={() => onSettingsChange({ showVi: !settings.showVi })}
-            title={settings.showVi ? 'Vietnamese meaning burst: ON' : 'Vietnamese meaning burst: OFF'}
+            title={settings.showVi ? 'Hiện nghĩa tiếng Việt: BẬT' : 'Hiện nghĩa tiếng Việt: TẮT'}
           >
             <span className="text-[11px] font-black tracking-tight">VI</span>
           </IconBtn>
           <IconBtn
             active={settings.sfx}
             onClick={() => onSettingsChange({ sfx: !settings.sfx })}
-            title={settings.sfx ? 'Sound effects: ON' : 'Sound effects: OFF'}
+            title={settings.sfx ? 'Hiệu ứng âm thanh: BẬT' : 'Hiệu ứng âm thanh: TẮT'}
           >
             <span className={settings.sfx ? '' : 'opacity-40 grayscale'}>🎵</span>
           </IconBtn>
-          <IconBtn active onClick={() => setPaused(!g.paused)} title="Pause (Esc)">
+          <IconBtn active onClick={() => setPaused(!g.paused)} title="Tạm dừng (Esc)">
             {g.paused ? '▶' : '❚❚'}
           </IconBtn>
         </div>
@@ -925,7 +932,7 @@ export default function Game({ deckId, startStage, settings, onSettingsChange, o
                 <span className="text-slate-500">{progressParts(locked.units, locked.st)[1]}</span>
               </span>
             ) : (
-              <span className="truncate text-xs text-slate-500 sm:text-sm">type to lock on…</span>
+              <span className="truncate text-xs text-slate-500 sm:text-sm">gõ để khóa mục tiêu…</span>
             )}
             <span className="ml-0.5 inline-block h-5 w-0.5 shrink-0 animate-pulse bg-cyan-300" />
           </div>
@@ -939,12 +946,12 @@ export default function Game({ deckId, startStage, settings, onSettingsChange, o
             style={{ opacity: Math.min(1, g.toast.t) }}
           >
             <div className="flex items-center justify-between gap-3">
-              <span className="text-[10px] font-bold tracking-widest text-emerald-400 uppercase">Word learned</span>
+              <span className="text-[10px] font-bold tracking-widest text-emerald-400 uppercase">Từ đã học</span>
               <button
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => g.toast && say(g.toast.entry)}
                 className="rounded-md bg-white/10 px-1.5 text-sm hover:bg-white/20"
-                title="Listen again"
+                title="Nghe lại"
               >
                 🔊
               </button>
@@ -974,7 +981,7 @@ export default function Game({ deckId, startStage, settings, onSettingsChange, o
         {g.phase === 'countdown' && !g.paused && (
           <div className="pointer-events-none absolute inset-0 z-30 flex flex-col items-center justify-center">
             <div className="text-sm font-bold tracking-[0.4em] text-cyan-300 uppercase">
-              Stage {g.stageIndex + 1} · {g.stage.name}
+              Màn {g.stageIndex + 1} · {stageLabels[g.stage.name] ?? g.stage.name}
             </div>
             <div
               key={Math.ceil(g.phaseTimer)}
@@ -983,7 +990,7 @@ export default function Game({ deckId, startStage, settings, onSettingsChange, o
               {Math.ceil(g.phaseTimer)}
             </div>
             <div className="mt-2 text-xs text-slate-400">
-              {g.stage.queue.length} words · max {g.stage.maxActive} on screen
+              {g.stage.queue.length} từ · tối đa {g.stage.maxActive} từ trên màn hình
             </div>
           </div>
         )}
@@ -994,9 +1001,9 @@ export default function Game({ deckId, startStage, settings, onSettingsChange, o
             <div className="pop-in text-center">
               <div className="text-6xl">🎉</div>
               <div className="bg-gradient-to-r from-emerald-300 to-cyan-300 bg-clip-text text-5xl font-black text-transparent">
-                Stage {g.stageIndex + 1} Clear!
+                Đã vượt qua màn {g.stageIndex + 1}!
               </div>
-              <div className="mt-2 text-slate-300">Get ready — the rain gets heavier…</div>
+              <div className="mt-2 text-slate-300">Chuẩn bị nào — cơn mưa sắp nặng hạt hơn…</div>
             </div>
           </div>
         )}
@@ -1005,17 +1012,17 @@ export default function Game({ deckId, startStage, settings, onSettingsChange, o
         {g.paused && !ended && (
           <Overlay>
             <div className="text-5xl">⏸️</div>
-            <h2 className="mt-2 text-4xl font-black text-white">Paused</h2>
-            <p className="mt-1 text-slate-400">Press Esc or click resume to continue</p>
+            <h2 className="mt-2 text-4xl font-black text-white">Đã tạm dừng</h2>
+            <p className="mt-1 text-slate-400">Nhấn Esc hoặc chọn tiếp tục để chơi tiếp</p>
             <div className="mt-5 flex flex-wrap justify-center gap-3">
               <Btn primary onClick={() => setPaused(false)}>
-                ▶ Resume
+                ▶ Tiếp tục
               </Btn>
-              <Btn onClick={onRestart}>↻ Restart</Btn>
-              <Btn onClick={onMenu}>☰ Deck Select</Btn>
+              <Btn onClick={onRestart}>↻ Chơi lại</Btn>
+              <Btn onClick={onMenu}>☰ Chọn bộ từ</Btn>
             </div>
             <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-              <div className="mb-3 text-left text-xs font-bold tracking-widest text-slate-400 uppercase">Settings</div>
+              <div className="mb-3 text-left text-xs font-bold tracking-widest text-slate-400 uppercase">Cài đặt</div>
               <SettingsPanel settings={settings} onChange={onSettingsChange} compact />
             </div>
           </Overlay>
@@ -1030,24 +1037,24 @@ export default function Game({ deckId, startStage, settings, onSettingsChange, o
                 g.phase === 'victory' ? 'from-amber-200 via-yellow-300 to-emerald-300' : 'from-rose-400 to-orange-400'
               }`}
             >
-              {g.phase === 'victory' ? 'Victory!' : 'Game Over'}
+              {g.phase === 'victory' ? 'Chiến thắng!' : 'Kết thúc lượt chơi'}
             </h2>
             <p className="mt-1 text-slate-300">
               {g.phase === 'victory'
-                ? `You cleared all ${STAGE_COUNT} stages of ${g.deck.name}!`
-                : `Your base fell on stage ${g.stageIndex + 1}. Keep practicing!`}
+                ? `Bạn đã vượt qua cả ${STAGE_COUNT} màn của ${g.deck.nameVi}!`
+                : `Căn cứ đã thất thủ ở màn ${g.stageIndex + 1}. Hãy tiếp tục luyện tập!`}
             </p>
             {g.newBest && g.score > 0 && (
               <div className="mt-2 inline-block rounded-full bg-amber-400/20 px-3 py-1 text-sm font-bold text-amber-300">
-                ⭐ New best score!
+                ⭐ Kỷ lục mới!
               </div>
             )}
             <div className="mt-5 grid grid-cols-3 gap-2 sm:grid-cols-6">
-              <Result label="Score" value={g.score.toLocaleString()} />
-              <Result label="Words" value={g.destroyed} />
-              <Result label="Missed" value={g.missed} />
-              <Result label="Max combo" value={`x${g.maxCombo}`} />
-              <Result label="Accuracy" value={`${accuracy}%`} />
+              <Result label="Điểm" value={g.score.toLocaleString()} />
+              <Result label="Từ đã bắn" value={g.destroyed} />
+              <Result label="Từ bị lọt" value={g.missed} />
+              <Result label="Combo cao nhất" value={`x${g.maxCombo}`} />
+              <Result label="Độ chính xác" value={`${accuracy}%`} />
               <Result label="WPM" value={wpm} />
             </div>
 
@@ -1055,25 +1062,25 @@ export default function Game({ deckId, startStage, settings, onSettingsChange, o
               <div className="mt-5 grid gap-4 text-left sm:grid-cols-2">
                 <div>
                   <div className="mb-2 text-xs font-bold tracking-widest text-emerald-400 uppercase">
-                    ✓ Words shot · Từ đã bắn ({g.learned.length})
+                    ✓ Từ đã bắn ({g.learned.length})
                   </div>
                   <div className="grid max-h-48 gap-1.5 overflow-y-auto pr-1">
                     {g.learned.length ? (
                       g.learned.map((l) => <WordRow key={`${l.jp ?? ''}${l.word}`} entry={l} onSpeak={say} />)
                     ) : (
-                      <div className="text-sm text-slate-500">No words yet — try again!</div>
+                      <div className="text-sm text-slate-500">Chưa bắn được từ nào — thử lại nhé!</div>
                     )}
                   </div>
                 </div>
                 <div>
                   <div className="mb-2 text-xs font-bold tracking-widest text-rose-400 uppercase">
-                    ✗ Words missed · Từ bị lọt ({g.missedWords.length})
+                    ✗ Từ bị lọt ({g.missedWords.length})
                   </div>
                   <div className="grid max-h-48 gap-1.5 overflow-y-auto pr-1">
                     {g.missedWords.length ? (
                       g.missedWords.map((l) => <WordRow key={`${l.jp ?? ''}${l.word}`} entry={l} onSpeak={say} miss />)
                     ) : (
-                      <div className="text-sm text-slate-500">Perfect defense — nothing slipped through! 🛡️</div>
+                      <div className="text-sm text-slate-500">Phòng thủ hoàn hảo — không từ nào lọt qua! 🛡️</div>
                     )}
                   </div>
                 </div>
@@ -1082,22 +1089,22 @@ export default function Game({ deckId, startStage, settings, onSettingsChange, o
 
             <div className="mt-6 flex flex-wrap justify-center gap-3">
               <Btn primary onClick={onRestart}>
-                ↻ Play Again
+                ↻ Chơi lại
               </Btn>
-              <Btn onClick={onMenu}>☰ Deck Select</Btn>
+              <Btn onClick={onMenu}>☰ Chọn bộ từ</Btn>
               <Btn onClick={onShare} disabled={shareState === 'working'}>
                 {shareState === 'working'
-                  ? '⏳ Creating…'
+                  ? '⏳ Đang tạo…'
                   : shareState === 'downloaded'
-                    ? '✅ Image saved'
+                    ? '✅ Đã lưu ảnh'
                     : shareState === 'shared'
-                      ? '✅ Shared'
+                      ? '✅ Đã chia sẻ'
                       : shareState === 'failed'
-                        ? '⚠️ Try again'
-                        : '📸 Share score image'}
+                        ? '⚠️ Thử lại'
+                        : '📸 Chia sẻ ảnh điểm'}
               </Btn>
             </div>
-            <p className="mt-3 text-xs text-slate-500">Press Enter to play again · tap 🔊 to hear a word</p>
+            <p className="mt-3 text-xs text-slate-500">Nhấn Enter để chơi lại · chạm 🔊 để nghe từ</p>
           </Overlay>
         )}
       </div>

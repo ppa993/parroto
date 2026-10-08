@@ -19,6 +19,20 @@ export default function DeckSelect({ initialDeck, settings, onSettingsChange, on
   const [peek, setPeek] = useState<WordEntry | null>(null);
   const deck = decks.find((d) => d.id === pickedId) ?? decks[0];
   const deckId = deck.id;
+  const deckDescriptions: Record<string, string> = {
+    basics: 'Những từ ngắn, thông dụng trong cuộc sống hằng ngày.',
+    nature: 'Động vật và thiên nhiên quanh ta.',
+    travel: 'Từ vựng hữu ích cho du lịch và ăn uống.',
+    business: 'Từ vựng tiếng Anh dùng trong công việc và kinh doanh.',
+    academic: 'Từ vựng học thuật và luyện thi IELTS.',
+  };
+  const levelLabels: Record<string, string> = {
+    Beginner: 'Cơ bản',
+    Elementary: 'Sơ cấp',
+    Intermediate: 'Trung cấp',
+    'Upper-Intermediate': 'Trên trung cấp',
+    Advanced: 'Nâng cao',
+  };
   const switchLang = (lang: 'en' | 'ja') => {
     if (lang === settings.lang) return;
     onSettingsChange({ lang });
@@ -73,11 +87,11 @@ export default function DeckSelect({ initialDeck, settings, onSettingsChange, on
         <h1 className="bg-gradient-to-r from-emerald-300 via-cyan-300 to-fuchsia-400 bg-clip-text text-5xl font-black tracking-tight text-transparent sm:text-6xl">
           Parroto
         </h1>
-        <p className="mt-2 text-lg font-semibold tracking-[0.3em] text-cyan-200/80 uppercase">Word Rain</p>
+        <p className="mt-2 text-lg font-semibold tracking-[0.3em] text-cyan-200/80 uppercase">Mưa Từ Vựng</p>
         <p className="mx-auto mt-3 max-w-xl text-sm text-slate-300">
-          Words rain down from the sky. Type them to blast them before they reach your base. The first letter locks your
-          target. Finish the word to destroy it, hear it pronounced, and see its{' '}
-          <span className="font-semibold text-amber-200">Vietnamese meaning</span> burst out!
+          Từ vựng rơi xuống từ bầu trời. Hãy gõ chúng để bắn hạ trước khi chạm căn cứ. Chữ cái đầu tiên sẽ khóa mục
+          tiêu. Gõ hoàn chỉnh để phá hủy từ, nghe phát âm và thấy{' '}
+          <span className="font-semibold text-amber-200">nghĩa tiếng Việt</span> bung ra!
         </p>
         <div className="mt-5 inline-flex rounded-2xl border border-white/15 bg-white/5 p-1">
           {(
@@ -105,8 +119,8 @@ export default function DeckSelect({ initialDeck, settings, onSettingsChange, on
         </div>
         {settings.lang === 'ja' && (
           <p className="font-vi mx-auto mt-3 max-w-xl text-xs text-pink-200/80">
-            🇯🇵 Type the <b>romaji</b> to shoot Japanese words, e.g. 寿司 → <code>sushi</code>. Both shi/si, tsu/tu,
-            chi/ti, ja/zya work · ん = n/nn · っ = double the consonant (kitte) · ー = <code>-</code>
+            🇯🇵 Gõ <b>romaji</b> để bắn từ tiếng Nhật, ví dụ 寿司 → <code>sushi</code>. Có thể dùng shi/si, tsu/tu,
+            chi/ti, ja/zya · ん = n/nn · っ = nhân đôi phụ âm (kitte) · ー = <code>-</code>
           </p>
         )}
       </div>
@@ -114,7 +128,7 @@ export default function DeckSelect({ initialDeck, settings, onSettingsChange, on
       <div className="grid w-full max-w-5xl gap-6 lg:grid-cols-[1.35fr_1fr]">
         {/* Left: decks + preview */}
         <div className="space-y-3">
-          <h2 className="text-xs font-bold tracking-widest text-slate-400 uppercase">1 · Choose a deck</h2>
+          <h2 className="text-xs font-bold tracking-widest text-slate-400 uppercase">1 · Chọn bộ từ</h2>
           {decks.map((d, i) => {
             const active = d.id === deckId;
             const best = getBest(d.id);
@@ -141,11 +155,11 @@ export default function DeckSelect({ initialDeck, settings, onSettingsChange, on
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="text-lg font-bold text-white">{d.name}</span>
                     <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-bold tracking-wider text-slate-200 uppercase">
-                      {d.level}
+                      {levelLabels[d.level] ?? d.level}
                     </span>
                   </div>
                   <p className="font-vi truncate text-sm text-slate-400">
-                    {d.nameVi} · {d.description}
+                    {d.nameVi} · {deckDescriptions[d.id] ?? d.description}
                   </p>
                   <div className="mt-1 flex items-center gap-1">
                     {Array.from({ length: 5 }, (_, k) => (
@@ -157,7 +171,7 @@ export default function DeckSelect({ initialDeck, settings, onSettingsChange, on
                   </div>
                 </div>
                 <div className="hidden text-right sm:block">
-                  <div className="text-[10px] tracking-wider text-slate-500 uppercase">Best</div>
+                  <div className="text-[10px] tracking-wider text-slate-500 uppercase">Kỷ lục</div>
                   <div className="font-game text-lg font-bold text-amber-300">{best}</div>
                 </div>
               </button>
@@ -166,8 +180,8 @@ export default function DeckSelect({ initialDeck, settings, onSettingsChange, on
 
           <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
             <div className="mb-2 flex items-center justify-between">
-              <span className="text-xs font-bold tracking-widest text-slate-400 uppercase">Deck preview</span>
-              <span className="text-xs text-slate-500">{deck.words.length} words</span>
+              <span className="text-xs font-bold tracking-widest text-slate-400 uppercase">Xem trước bộ từ</span>
+              <span className="text-xs text-slate-500">{deck.words.length} từ</span>
             </div>
             <div className="mb-3 min-h-[44px] rounded-xl bg-slate-950/60 px-3 py-2">
               {peek ? (
@@ -175,7 +189,7 @@ export default function DeckSelect({ initialDeck, settings, onSettingsChange, on
                   <button
                     onClick={() => hear(peek)}
                     className="rounded-lg bg-white/10 px-2 py-1 text-base hover:bg-white/20"
-                    aria-label={`Pronounce ${peek.word}`}
+                    aria-label={`Phát âm ${peek.word}`}
                   >
                     🔊
                   </button>
@@ -194,7 +208,7 @@ export default function DeckSelect({ initialDeck, settings, onSettingsChange, on
                 </div>
               ) : (
                 <div className="font-vi py-1.5 text-xs text-slate-500">
-                  👆 Tap a word to hear it and see its meaning · Nhấn vào từ để nghe phát âm và xem nghĩa
+                  👆 Chạm vào một từ để nghe phát âm và xem nghĩa
                 </div>
               )}
             </div>
@@ -219,7 +233,7 @@ export default function DeckSelect({ initialDeck, settings, onSettingsChange, on
 
         {/* Right: stage + settings + start */}
         <div className="space-y-4">
-          <h2 className="text-xs font-bold tracking-widest text-slate-400 uppercase">2 · Starting stage</h2>
+          <h2 className="text-xs font-bold tracking-widest text-slate-400 uppercase">2 · Chọn màn chơi</h2>
           <div className="grid grid-cols-5 gap-2">
             {Array.from({ length: STAGE_COUNT }, (_, i) => (
               <button
@@ -232,20 +246,22 @@ export default function DeckSelect({ initialDeck, settings, onSettingsChange, on
                 }`}
               >
                 <div className="text-xl font-black">{i + 1}</div>
-                <div className="text-[9px] tracking-wide uppercase opacity-70">{STAGE_NAMES[i]}</div>
+                <div className="text-[9px] tracking-wide uppercase opacity-70">
+                  {({ Drizzle: 'Mưa phùn', Shower: 'Mưa rào', Downpour: 'Mưa lớn', Thunderstorm: 'Giông bão', Monsoon: 'Mưa mùa' } as Record<string, string>)[STAGE_NAMES[i]] ?? STAGE_NAMES[i]}
+                </div>
               </button>
             ))}
           </div>
           <p className="text-xs text-slate-400">
-            Each stage increases falling speed, word length and spawn density. Clear stage {STAGE_COUNT} to win!
+            Mỗi màn tăng tốc độ rơi, độ dài từ và mật độ xuất hiện. Vượt qua màn {STAGE_COUNT} để chiến thắng!
           </p>
 
-          <h2 className="pt-1 text-xs font-bold tracking-widest text-slate-400 uppercase">3 · Sound & meaning</h2>
+          <h2 className="pt-1 text-xs font-bold tracking-widest text-slate-400 uppercase">3 · Âm thanh & nghĩa</h2>
           <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
             <SettingsPanel settings={settings} onChange={onSettingsChange} />
             {!ttsSupported && (
               <p className="mt-3 text-xs text-amber-300/80">
-                Your browser does not support speech synthesis. Try Chrome, Edge or Safari for pronunciation.
+                Trình duyệt không hỗ trợ đọc văn bản. Hãy thử Chrome, Edge hoặc Safari để nghe phát âm.
               </p>
             )}
           </div>
@@ -254,12 +270,12 @@ export default function DeckSelect({ initialDeck, settings, onSettingsChange, on
             onClick={start}
             className={`w-full rounded-2xl bg-gradient-to-r ${deck.color} py-4 text-xl font-black text-white shadow-xl transition-transform hover:scale-[1.02] active:scale-95`}
           >
-            ▶ START GAME
+            ▶ BẮT ĐẦU CHƠI
           </button>
           <p className="text-center text-xs text-slate-500">
-            <kbd className="rounded bg-white/10 px-1.5">Enter</kbd> start · <kbd className="rounded bg-white/10 px-1.5">Esc</kbd>{' '}
-            pause · <kbd className="rounded bg-white/10 px-1.5">Backspace</kbd> release target ·{' '}
-            <kbd className="rounded bg-white/10 px-1.5">↑↓</kbd> deck
+            <kbd className="rounded bg-white/10 px-1.5">Enter</kbd> bắt đầu · <kbd className="rounded bg-white/10 px-1.5">Esc</kbd>{' '}
+            tạm dừng · <kbd className="rounded bg-white/10 px-1.5">Backspace</kbd> bỏ khóa mục tiêu ·{' '}
+            <kbd className="rounded bg-white/10 px-1.5">↑↓</kbd> bộ từ
           </p>
         </div>
       </div>

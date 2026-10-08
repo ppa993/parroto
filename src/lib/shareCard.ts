@@ -100,13 +100,13 @@ export async function renderScoreCard(d: ScoreCardData): Promise<Blob | null> {
   ctx.fillText('Parroto', W / 2, 285);
   ctx.fillStyle = 'rgba(165,243,252,0.85)';
   ctx.font = `700 30px ${FONT}`;
-  ctx.fillText('W O R D   R A I N', W / 2, 335);
+  ctx.fillText('M Ư A   T Ừ   V Ự N G', W / 2, 335);
 
   // Result
   const win = d.result === 'victory';
   ctx.font = `900 72px ${FONT}`;
   ctx.fillStyle = win ? '#fde047' : '#fb7185';
-  ctx.fillText(win ? '🏆 VICTORY!' : '💥 GAME OVER', W / 2, 450);
+  ctx.fillText(win ? '🏆 CHIẾN THẮNG!' : '💥 KẾT THÚC LƯỢT', W / 2, 450);
   ctx.font = `600 34px ${FONT}`;
   ctx.fillStyle = '#cbd5e1';
   ctx.fillText(fit(ctx, `${d.deckIcon} ${d.deckName} · ${d.level}`, W - 160), W / 2, 510);
@@ -120,19 +120,19 @@ export async function renderScoreCard(d: ScoreCardData): Promise<Blob | null> {
   ctx.stroke();
   ctx.fillStyle = '#94a3b8';
   ctx.font = `800 28px ${FONT}`;
-  ctx.fillText('SCORE', W / 2, 610);
+  ctx.fillText('ĐIỂM', W / 2, 610);
   ctx.fillStyle = '#fcd34d';
   ctx.font = `900 120px ${MONO}`;
   ctx.fillText(d.score.toLocaleString('en-US'), W / 2, 730);
 
   // Stats grid
   const stats: [string, string][] = [
-    ['Words', String(d.destroyed)],
-    ['Max combo', `x${d.maxCombo}`],
-    ['Accuracy', `${d.accuracy}%`],
+    ['Từ đã bắn', String(d.destroyed)],
+    ['Combo cao nhất', `x${d.maxCombo}`],
+    ['Độ chính xác', `${d.accuracy}%`],
     ['WPM', String(d.wpm)],
-    ['Stage', `${d.stage}/${d.stageCount}`],
-    ['Missed', String(d.missed)],
+    ['Màn', `${d.stage}/${d.stageCount}`],
+    ['Từ bị lọt', String(d.missed)],
   ];
   const cw = (W - 200 - 40) / 3;
   const ch = 120;
@@ -158,7 +158,7 @@ export async function renderScoreCard(d: ScoreCardData): Promise<Blob | null> {
   if (words.length) {
     ctx.fillStyle = '#94a3b8';
     ctx.font = `800 24px ${FONT}`;
-    ctx.fillText(`TỪ VỰNG ĐÃ HỌC · WORDS LEARNED (${d.words.length})`, W / 2, 1105);
+    ctx.fillText(`TỪ VỰNG ĐÃ HỌC (${d.words.length})`, W / 2, 1105);
     ctx.textAlign = 'left';
     words.forEach((wd, i) => {
       const x = 110 + (i % 2) * 440;
@@ -197,7 +197,7 @@ export async function shareScoreImage(
       await navigator.share({
         files: [file],
         title: 'Parroto · Word Rain',
-        text: `I scored ${d.score.toLocaleString('en-US')} in Parroto Word Rain (${d.deckName})!`,
+        text: `Tôi đạt ${d.score.toLocaleString('en-US')} điểm trong Mưa Từ Vựng Parroto (${d.deckName})!`,
       });
       return 'shared';
     } catch {

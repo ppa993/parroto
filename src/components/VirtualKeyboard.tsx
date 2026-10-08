@@ -38,7 +38,7 @@ function VirtualKeyboard({ onChar, onBackspace }: Props) {
               </button>
             ))}
             {r === 2 && (
-              <button onPointerDown={press('-', () => onChar('-'))} className={keyClass('-')} aria-label="Long vowel">
+              <button onPointerDown={press('-', () => onChar('-'))} className={keyClass('-')} aria-label="Âm dài">
                 ー
               </button>
             )}
@@ -46,7 +46,7 @@ function VirtualKeyboard({ onChar, onBackspace }: Props) {
               <button
                 onPointerDown={press('⌫', onBackspace)}
                 className={`${keyClass('⌫')} max-w-[90px] flex-[1.6] text-base normal-case`}
-                aria-label="Release target"
+                aria-label="Bỏ khóa mục tiêu"
               >
                 ⌫
               </button>

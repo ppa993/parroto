@@ -24,8 +24,8 @@ export default function SettingsPanel({ settings, onChange, compact }: Props) {
     <div className="space-y-2.5 text-left">
       <ToggleRow
         icon="🔊"
-        title="Read words aloud"
-        sub={ttsSupported ? 'Đọc to từ vừa bắn hạ' : 'Speech is not supported in this browser'}
+        title="Đọc từ thành tiếng"
+        sub={ttsSupported ? 'Đọc từ vừa bắn hạ' : 'Trình duyệt không hỗ trợ đọc văn bản'}
         checked={settings.tts && ttsSupported}
         disabled={!ttsSupported}
         onChange={(v) => onChange({ tts: v })}
@@ -46,9 +46,9 @@ export default function SettingsPanel({ settings, onChange, compact }: Props) {
           <Segmented
             value={String(settings.rate)}
             options={[
-              ['0.75', 'Slow'],
-              ['0.95', 'Normal'],
-              ['1.15', 'Fast'],
+              ['0.75', 'Chậm'],
+              ['0.95', 'Bình thường'],
+              ['1.15', 'Nhanh'],
             ]}
             onChange={(v) => onChange({ rate: Number(v) })}
           />
@@ -60,9 +60,9 @@ export default function SettingsPanel({ settings, onChange, compact }: Props) {
                 test(e.target.value, 'hello');
               }}
               className="max-w-[210px] rounded-lg border border-white/15 bg-slate-900 px-2 py-1 text-xs text-slate-200 outline-none focus:border-cyan-300"
-              aria-label="Voice"
+              aria-label="Giọng đọc"
             >
-              <option value="">Auto voice</option>
+              <option value="">Tự động chọn giọng</option>
               {sortedVoices.map((v) => (
                 <option key={v.voiceURI} value={v.voiceURI}>
                   {v.name} ({v.lang})
@@ -74,20 +74,20 @@ export default function SettingsPanel({ settings, onChange, compact }: Props) {
             onClick={() => test()}
             className="rounded-lg border border-white/15 bg-white/5 px-2.5 py-1 text-xs font-semibold text-cyan-200 hover:bg-white/10"
           >
-            ▶ Test
+            ▶ Thử giọng
           </button>
         </div>
       )}
       <ToggleRow
         icon="💥"
-        title="Vietnamese meaning burst"
+        title="Hiện nghĩa tiếng Việt"
         sub="Nghĩa tiếng Việt bung ra khi từ phát nổ"
         checked={settings.showVi}
         onChange={(v) => onChange({ showVi: v })}
       />
       <ToggleRow
         icon="💡"
-        title="Meaning hints on falling words"
+        title="Gợi ý nghĩa trên từ đang rơi"
         sub="Hiện nghĩa dưới từ đang rơi (dễ hơn)"
         checked={settings.hints}
         onChange={(v) => onChange({ hints: v })}
@@ -95,7 +95,7 @@ export default function SettingsPanel({ settings, onChange, compact }: Props) {
       {settings.lang === 'ja' && (
         <ToggleRow
           icon="あ"
-          title="Show kana reading"
+          title="Hiện cách đọc kana"
           sub="Hiện cách đọc hiragana trên chữ Kanji"
           checked={settings.showKana}
           onChange={(v) => onChange({ showKana: v })}
@@ -103,18 +103,18 @@ export default function SettingsPanel({ settings, onChange, compact }: Props) {
       )}
       <ToggleRow
         icon="🎵"
-        title="Sound effects"
+        title="Hiệu ứng âm thanh"
         sub="Hiệu ứng âm thanh bắn, nổ"
         checked={settings.sfx}
         onChange={(v) => onChange({ sfx: v })}
       />
-      <Row icon="⌨️" title="On-screen keyboard" sub="Bàn phím ảo cho điện thoại / iPad">
+      <Row icon="⌨️" title="Bàn phím trên màn hình" sub="Bàn phím ảo cho điện thoại / iPad">
         <Segmented
           value={settings.keyboard}
           options={[
-            ['auto', 'Auto'],
-            ['on', 'On'],
-            ['off', 'Off'],
+            ['auto', 'Tự động'],
+            ['on', 'Bật'],
+            ['off', 'Tắt'],
           ]}
           onChange={(v) => onChange({ keyboard: v as KeyboardMode })}
         />
