@@ -1,0 +1,1255 @@
+import { memo, useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { DECKS, STAGE_COUNT, buildStage, createGamePlan, getBest, setBest, type StageConfig, type WordEntry } from '../data/decks';
+import { keyboardVisible, type Settings } from '../lib/settings';
+import { sfx, setSfxEnabled } from '../lib/sfx';
+import { renderScoreCard, shareScoreImage, type ScoreCardData } from '../lib/shareCard';
+import { speak, stopSpeech } from '../lib/speech';
+import SettingsPanel from './SettingsPanel';
+import VirtualKeyboard from './VirtualKeyboard';
+
+type FallingWord = {
+  id: number;
+  entry: WordEntry;
+  text: string;
+  x: number;
+  y: number;
+  speed: number;
+  typed: number;
+  hit: number; // flash timer after a correct key
+  shake: number; // wrong-key shake timer
+};
+
+type Particle = {
+  id: number;
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  life: number;
+  maxLife: number;
+  color: string;
+  size: number;
+  char?: string;
+};
+
+type Laser = { id: number; x: number; y: number; life: number };
+type FloatText = { id: number; x: number; y: number; text: string; life: number; color: string };
+type Ring = { id: number; x: number; y: number; life: number; maxLife: number; color: string; size: number; flash?: boolean };
+type MeaningBurst = {
+  id: number;
+  x: number;
+  y: number;
+  word: string;
+  pos: string;
+  vi: string;
+  pts: number;
+  combo: number;
+  life: number;
+  maxLife: number;
+  seeds: number[];
+};
+
+type Phase = 'countdown' | 'playing' | 'stageClear' | 'over' | 'victory';
+type ShareState = 'idle' | 'working' | 'shared' | 'downloaded' | 'failed';
+
+const BASE_ZONE = 110; // px from bottom where words hit the base
+const CHAR_W = 14;
+const BURST_LIFE = 2.2;
+const COLORS = ['#fbbf24', '#f472b6', '#22d3ee', '#a78bfa', '#34d399', '#fb7185'];
+
+const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
+const clamp01 = (v: number) => clamp(v, 0, 1);
+const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
+const easeOutBack = (t: number) => {
+  const c1 = 1.70158;
+  const c3 = c1 + 1;
+  return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
+};
+
+let uid = 1;
+const nextId = () => uid++;
+
+type Engine = ReturnType<typeof createEngine>;
+
+function createEngine(deckId: string, startStage: number) {
+  const deck = DECKS.find((d) => d.id === deckId) ?? DECKS[0];
+  const plan = createGamePlan(deck, startStage);
+  return {
+    deck,
+    plan,
+    stage: buildStage(deck, startStage, plan) as StageConfig,
+    stageIndex: startStage,
+    spawned: 0,
+    spawnTimer: 0.4,
+    words: [] as FallingWord[],
+    particles: [] as Particle[],
+    lasers: [] as Laser[],
+    floats: [] as FloatText[],
+    rings: [] as Ring[],
+    bursts: [] as MeaningBurst[],
+    lockedId: null as number | null,
+    phase: 'countdown' as Phase,
+    phaseTimer: 3,
+    lastCount: 0,
+    paused: false,
+    dirty: true,
+    score: 0,
+    lives: 3,
+    combo: 0,
+    maxCombo: 0,
+    keystrokes: 0,
+    correct: 0,
+    mistakes: 0,
+    destroyed: 0,
+    missed: 0,
+    playTime: 0,
+    learned: [] as WordEntry[],
+    missedWords: [] as WordEntry[],
+    toast: null as null | { entry: WordEntry; t: number; id: number },
+    shake: 0,
+    hurt: 0,
+    heartAnim: 0,
+    width: 800,
+    height: 600,
+    shipAngle: 0,
+    newBest: false,
+  };
+}
+
+const calcAccuracy = (g: Engine) => (g.keystrokes ? Math.round((g.correct / g.keystrokes) * 100) : 100);
+const calcWpm = (g: Engine) => (g.playTime > 3 ? Math.round(g.correct / 5 / (g.playTime / 60)) : 0);
+
+function cardData(g: Engine): ScoreCardData {
+  return {
+    result: g.phase === 'victory' ? 'victory' : 'over',
+    deckName: g.deck.name,
+    deckIcon: g.deck.icon,
+    level: g.deck.level,
+    score: g.score,
+    stage: g.stageIndex + 1,
+    stageCount: STAGE_COUNT,
+    destroyed: g.destroyed,
+    missed: g.missed,
+    maxCombo: g.maxCombo,
+    accuracy: calcAccuracy(g),
+    wpm: calcWpm(g),
+    words: g.learned,
+  };
+}
+
+type Props = {
+  deckId: string;
+  startStage: number;
+  settings: Settings;
+  onSettingsChange: (patch: Partial<Settings>) => void;
+  onRestart: () => void;
+  onMenu: () => void;
+};
+
+export default function Game({ deckId, startStage, settings, onSettingsChange, onRestart, onMenu }: Props) {
+  const [g] = useState(() => createEngine(deckId, startStage));
+  const fieldRef = useRef<HTMLDivElement>(null);
+  const settingsRef = useRef(settings);
+  const cardRef = useRef<{ blob: Blob | null }>({ blob: null });
+  const [, setTick] = useState(0);
+  const [shareState, setShareState] = useState<ShareState>('idle');
+
+  useEffect(() => {
+    settingsRef.current = settings;
+    setSfxEnabled(settings.sfx);
+    g.dirty = true;
+  }, [settings, g]);
+
+  useEffect(() => () => stopSpeech(), []);
+
+  // Track play-field size
+  useEffect(() => {
+    const el = fieldRef.current;
+    if (!el) return;
+    const update = () => {
+      g.width = el.clientWidth;
+      g.height = el.clientHeight;
+      g.dirty = true;
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [g]);
+
+  const setPaused = useCallback(
+    (v: boolean) => {
+      if (g.phase === 'over' || g.phase === 'victory') return;
+      g.paused = v;
+      g.dirty = true;
+    },
+    [g]
+  );
+
+  const say = useCallback((text: string) => {
+    const s = settingsRef.current;
+    speak(text, { accent: s.accent, rate: s.rate, voiceURI: s.voiceURI });
+  }, []);
+
+  const burst = useCallback(
+    (x: number, y: number, n: number, color?: string, speed = 220) => {
+      for (let i = 0; i < n; i++) {
+        const a = Math.random() * Math.PI * 2;
+        const s = speed * (0.3 + Math.random());
+        const life = 0.4 + Math.random() * 0.5;
+        g.particles.push({
+          id: nextId(),
+          x,
+          y,
+          vx: Math.cos(a) * s,
+          vy: Math.sin(a) * s,
+          life,
+          maxLife: life,
+          color: color ?? COLORS[Math.floor(Math.random() * COLORS.length)],
+          size: 2 + Math.random() * 4,
+        });
+      }
+    },
+    [g]
+  );
+
+  const spawnWord = useCallback(() => {
+    const entry = g.stage.queue[g.spawned];
+    if (!entry) return;
+    const half = (entry.word.length * CHAR_W) / 2 + 20;
+    const minX = half;
+    const maxX = Math.max(minX + 1, g.width - half);
+    let x = minX + Math.random() * (maxX - minX);
+    for (let tries = 0; tries < 12; tries++) {
+      const clash = g.words.some((w) => w.y < 90 && Math.abs(w.x - x) < (w.text.length * CHAR_W) / 2 + half);
+      if (!clash) break;
+      x = minX + Math.random() * (maxX - minX);
+    }
+    const travel = g.height - BASE_ZONE;
+    const lenFactor = 1 + Math.max(0, entry.word.length - 5) * 0.04;
+    const fallTime = g.stage.fallTime * lenFactor * (0.9 + Math.random() * 0.2);
+    g.words.push({
+      id: nextId(),
+      entry,
+      text: entry.word,
+      x,
+      y: -30,
+      speed: travel / fallTime,
+      typed: 0,
+      hit: 0,
+      shake: 0,
+    });
+    g.spawned++;
+  }, [g]);
+
+  const finish = useCallback(
+    (phase: 'over' | 'victory') => {
+      g.phase = phase;
+      g.lockedId = null;
+      g.newBest = g.score > getBest(g.deck.id);
+      setBest(g.deck.id, g.score);
+      g.dirty = true;
+      if (phase === 'victory') sfx.victory();
+      else sfx.gameOver();
+      // Pre-render the share image so the share sheet opens instantly on click
+      window.setTimeout(() => {
+        renderScoreCard(cardData(g)).then((b) => (cardRef.current.blob = b));
+      }, 700);
+    },
+    [g]
+  );
+
+  const destroyWord = useCallback(
+    (w: FallingWord) => {
+      const s = settingsRef.current;
+      g.words = g.words.filter((o) => o.id !== w.id);
+      g.lockedId = null;
+      g.combo++;
+      g.maxCombo = Math.max(g.maxCombo, g.combo);
+      g.destroyed++;
+      const mult = 1 + Math.min(g.combo, 20) * 0.1;
+      const pts = Math.round(w.text.length * 10 * mult * (1 + g.stageIndex * 0.25));
+      g.score += pts;
+      const cy = w.y + 16;
+
+      // Letters of the English word fly apart
+      w.text.split('').forEach((ch, i) => {
+        const px = w.x - (w.text.length * CHAR_W) / 2 + i * CHAR_W + CHAR_W / 2;
+        const a = -Math.PI / 2 + (Math.random() - 0.5) * 2.4;
+        const sp = 120 + Math.random() * 200;
+        g.particles.push({
+          id: nextId(),
+          x: px,
+          y: cy,
+          vx: Math.cos(a) * sp,
+          vy: Math.sin(a) * sp,
+          life: 0.9,
+          maxLife: 0.9,
+          color: '#fde68a',
+          size: 20,
+          char: ch,
+        });
+      });
+      burst(w.x, cy, 26);
+
+      // Flash + shockwave rings
+      g.rings.push({ id: nextId(), x: w.x, y: cy, life: 0.35, maxLife: 0.35, color: '#fde68a', size: 130, flash: true });
+      g.rings.push({ id: nextId(), x: w.x, y: cy, life: 0.6, maxLife: 0.6, color: '#fbbf24', size: 170 });
+      g.rings.push({ id: nextId(), x: w.x, y: cy, life: 0.85, maxLife: 0.85, color: '#22d3ee', size: 240 });
+
+      // Vietnamese meaning blows out of the explosion
+      if (s.showVi) {
+        const chars = Array.from(w.entry.vi);
+        const half = Math.max(chars.length * 15, w.text.length * 10) / 2 + 14;
+        const bx = g.width <= half * 2 + 12 ? g.width / 2 : clamp(w.x, half + 6, g.width - half - 6);
+        const by = clamp(cy, 56, g.height - BASE_ZONE - 30);
+        g.bursts.push({
+          id: nextId(),
+          x: bx,
+          y: by,
+          word: w.text,
+          pos: w.entry.pos,
+          vi: w.entry.vi,
+          pts,
+          combo: g.combo,
+          life: BURST_LIFE,
+          maxLife: BURST_LIFE,
+          seeds: chars.map(() => Math.random() * 2 - 1),
+        });
+      } else {
+        g.floats.push({
+          id: nextId(),
+          x: w.x,
+          y: w.y,
+          text: `+${pts}${g.combo >= 3 ? `  x${g.combo}` : ''}`,
+          life: 1,
+          color: '#fbbf24',
+        });
+      }
+
+      // Read the word aloud
+      if (s.tts) say(w.text);
+      sfx.explode();
+
+      if (!g.learned.some((l) => l.word === w.text)) g.learned.push(w.entry);
+      g.toast = { entry: w.entry, t: 3.5, id: nextId() };
+    },
+    [g, burst, say]
+  );
+
+  const mistake = useCallback(
+    (w?: FallingWord) => {
+      g.mistakes++;
+      g.combo = 0;
+      if (w) w.shake = 0.25;
+      sfx.error();
+    },
+    [g]
+  );
+
+  const handleChar = useCallback(
+    (raw: string) => {
+      if (g.phase !== 'playing' || g.paused) return;
+      const k = raw.toLowerCase();
+      if (!/^[a-z'-]$/.test(k)) return;
+      g.keystrokes++;
+
+      let target = g.words.find((w) => w.id === g.lockedId);
+      if (!target) {
+        const candidates = g.words
+          .filter((w) => w.text[0].toLowerCase() === k && w.y > -25)
+          .sort((a, b) => b.y - a.y);
+        if (!candidates.length) {
+          mistake();
+          return;
+        }
+        target = candidates[0];
+        g.lockedId = target.id;
+      }
+
+      if (target.text[target.typed].toLowerCase() === k) {
+        target.typed++;
+        target.hit = 0.12;
+        g.correct++;
+        g.score += 2;
+        g.lasers.push({ id: nextId(), x: target.x, y: target.y + 16, life: 0.12 });
+        burst(target.x, target.y + 18, 5, '#67e8f9', 140);
+        sfx.shoot();
+        if (target.typed >= target.text.length) destroyWord(target);
+      } else {
+        mistake(target);
+      }
+    },
+    [g, burst, destroyWord, mistake]
+  );
+
+  const handleBackspace = useCallback(() => {
+    if (g.phase !== 'playing' || g.paused) return;
+    const t = g.words.find((w) => w.id === g.lockedId);
+    if (t) t.typed = 0;
+    g.lockedId = null;
+  }, [g]);
+
+  // Physical keyboard
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement | null)?.tagName;
+      const inForm = tag === 'SELECT' || tag === 'INPUT' || tag === 'TEXTAREA';
+      if (e.key === 'Escape') {
+        setPaused(!g.paused);
+        return;
+      }
+      if (g.phase === 'over' || g.phase === 'victory') {
+        if (e.key === 'Enter' && tag !== 'BUTTON' && !inForm) onRestart();
+        return;
+      }
+      if (g.paused || inForm) return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        return;
+      }
+      if (e.key === 'Backspace') {
+        e.preventDefault();
+        handleBackspace();
+        return;
+      }
+      if (e.repeat || e.key.length !== 1) return;
+      if (/^[a-zA-Z'-]$/.test(e.key)) {
+        e.preventDefault();
+        handleChar(e.key);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [g, handleChar, handleBackspace, onRestart, setPaused]);
+
+  // Auto-pause when the window loses focus or the tab is hidden
+  useEffect(() => {
+    const pause = () => {
+      if (g.phase === 'playing' || g.phase === 'countdown') setPaused(true);
+    };
+    const onVis = () => document.hidden && pause();
+    window.addEventListener('blur', pause);
+    document.addEventListener('visibilitychange', onVis);
+    return () => {
+      window.removeEventListener('blur', pause);
+      document.removeEventListener('visibilitychange', onVis);
+    };
+  }, [g, setPaused]);
+
+  // Main game loop
+  useEffect(() => {
+    let raf = 0;
+    let last = performance.now();
+    const loop = (now: number) => {
+      const dt = Math.min(0.05, (now - last) / 1000);
+      last = now;
+
+      if (!g.paused) {
+        // Visual effects
+        g.particles = g.particles.filter((p) => {
+          p.life -= dt;
+          p.x += p.vx * dt;
+          p.y += p.vy * dt;
+          p.vy += (p.char ? 420 : 300) * dt;
+          p.vx *= 0.98;
+          return p.life > 0;
+        });
+        g.lasers = g.lasers.filter((l) => (l.life -= dt) > 0);
+        g.rings = g.rings.filter((r) => (r.life -= dt) > 0);
+        g.bursts = g.bursts.filter((b) => (b.life -= dt) > 0);
+        g.floats = g.floats.filter((f) => {
+          f.life -= dt;
+          f.y -= 50 * dt;
+          return f.life > 0;
+        });
+        if (g.toast) {
+          g.toast.t -= dt;
+          if (g.toast.t <= 0) g.toast = null;
+        }
+        g.shake = Math.max(0, g.shake - dt);
+        g.hurt = Math.max(0, g.hurt - dt);
+        g.heartAnim = Math.max(0, g.heartAnim - dt);
+
+        // Ship aims at the locked target
+        const target = g.words.find((w) => w.id === g.lockedId);
+        const shipX = g.width / 2;
+        const shipY = g.height - 58;
+        const desired = target ? Math.atan2(target.x - shipX, shipY - target.y) : 0;
+        g.shipAngle += (desired - g.shipAngle) * Math.min(1, dt * 14);
+
+        if (g.phase === 'countdown') {
+          g.phaseTimer -= dt;
+          const c = Math.ceil(g.phaseTimer);
+          if (c > 0 && c !== g.lastCount) {
+            g.lastCount = c;
+            sfx.countdown(false);
+          }
+          if (g.phaseTimer <= 0) {
+            g.phase = 'playing';
+            g.spawnTimer = 0.2;
+            g.lastCount = 0;
+            sfx.countdown(true);
+          }
+        } else if (g.phase === 'stageClear') {
+          g.phaseTimer -= dt;
+          if (g.phaseTimer <= 0) {
+            g.stageIndex++;
+            g.stage = buildStage(g.deck, g.stageIndex, g.plan);
+            g.spawned = 0;
+            g.phase = 'countdown';
+            g.phaseTimer = 3;
+            g.lastCount = 0;
+          }
+        } else if (g.phase === 'playing') {
+          g.playTime += dt;
+          g.spawnTimer -= dt;
+          if (g.spawned < g.stage.queue.length) {
+            if (g.words.length === 0 || (g.spawnTimer <= 0 && g.words.length < g.stage.maxActive)) {
+              spawnWord();
+              g.spawnTimer = g.stage.spawnInterval * (0.8 + Math.random() * 0.4);
+            }
+          }
+          const floor = g.height - BASE_ZONE;
+          const survivors: FallingWord[] = [];
+          for (const w of g.words) {
+            w.y += w.speed * dt;
+            w.hit = Math.max(0, w.hit - dt);
+            w.shake = Math.max(0, w.shake - dt);
+            if (w.y >= floor) {
+              g.lives--;
+              g.missed++;
+              g.combo = 0;
+              g.shake = 0.4;
+              g.hurt = 0.6;
+              g.heartAnim = 0.5;
+              if (g.lockedId === w.id) g.lockedId = null;
+              if (!g.missedWords.some((m) => m.word === w.text)) g.missedWords.push(w.entry);
+              burst(w.x, floor + 10, 40, '#f43f5e', 300);
+              g.floats.push({ id: nextId(), x: w.x, y: floor - 20, text: '-1 ♥', life: 1, color: '#fb7185' });
+              sfx.hurt();
+            } else survivors.push(w);
+          }
+          g.words = survivors;
+
+          if (g.lives <= 0) {
+            g.lives = 0;
+            finish('over');
+          } else if (g.spawned >= g.stage.queue.length && g.words.length === 0) {
+            const bonus = 250 * (g.stageIndex + 1) + g.lives * 100;
+            g.score += bonus;
+            g.floats.push({
+              id: nextId(),
+              x: g.width / 2,
+              y: g.height / 2 + 70,
+              text: `Stage bonus +${bonus}`,
+              life: 2,
+              color: '#34d399',
+            });
+            if (g.stageIndex >= STAGE_COUNT - 1) finish('victory');
+            else {
+              g.phase = 'stageClear';
+              g.phaseTimer = 2.5;
+              sfx.stageClear();
+            }
+          }
+        }
+      }
+
+      const ended = g.phase === 'over' || g.phase === 'victory';
+      const animating = g.particles.length + g.bursts.length + g.rings.length + g.floats.length > 0;
+      if (g.dirty || (!g.paused && (!ended || animating))) {
+        g.dirty = false;
+        setTick((t) => (t + 1) % 1000000);
+      }
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, [g, burst, finish, spawnWord]);
+
+  const onShare = async () => {
+    setShareState('working');
+    const res = await shareScoreImage(cardData(g), cardRef.current.blob);
+    setShareState(res === 'cancelled' ? 'idle' : res);
+  };
+
+  // ---------- Render ----------
+  const locked = g.words.find((w) => w.id === g.lockedId);
+  const shipX = g.width / 2;
+  const shipY = g.height - 58;
+  const accuracy = calcAccuracy(g);
+  const wpm = calcWpm(g);
+  const stageProgress = g.stage.queue.length ? (g.spawned - g.words.length) / g.stage.queue.length : 0;
+  const shakeAmt = g.shake > 0 ? 14 * (g.shake / 0.4) : 0;
+  const shakeX = shakeAmt ? (Math.random() - 0.5) * shakeAmt : 0;
+  const shakeY = shakeAmt ? (Math.random() - 0.5) * shakeAmt : 0;
+  const ended = g.phase === 'over' || g.phase === 'victory';
+  const showKeyboard = keyboardVisible(settings.keyboard) && !ended;
+
+  return (
+    <div className="relative z-10 flex h-full w-full flex-col">
+      {/* HUD */}
+      <div className="relative z-20 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b border-white/10 bg-slate-950/60 px-3 py-2 backdrop-blur sm:px-4">
+        <div className="flex items-center gap-3">
+          <button
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={onMenu}
+            className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-sm text-slate-300 hover:bg-white/10"
+            title="Back to decks"
+          >
+            ← Decks
+          </button>
+          <div className="hidden items-center gap-2 sm:flex">
+            <span className="text-2xl">{g.deck.icon}</span>
+            <div className="leading-tight">
+              <div className="text-sm font-bold text-white">{g.deck.name}</div>
+              <div className="font-vi text-[11px] text-slate-400">{g.deck.nameVi}</div>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-4 sm:gap-5">
+          <Stat label="Stage" value={`${g.stageIndex + 1}/${STAGE_COUNT}`} sub={g.stage.name} />
+          <Stat label="Score" value={g.score.toLocaleString()} highlight />
+          <Stat label="Combo" value={`x${g.combo}`} />
+          <div className="hidden md:block">
+            <Stat label="WPM · Acc" value={`${wpm} · ${accuracy}%`} />
+          </div>
+        </div>
+
+        <div className="flex items-center gap-1.5">
+          <div className={`mr-1 flex gap-0.5 text-xl sm:text-2xl ${g.heartAnim > 0 ? 'heart-loss' : ''}`}>
+            {Array.from({ length: 3 }, (_, i) => (
+              <span
+                key={i}
+                className={`transition-all duration-300 ${
+                  i < g.lives ? 'drop-shadow-[0_0_6px_rgba(244,63,94,0.8)]' : 'scale-75 opacity-25 grayscale'
+                }`}
+              >
+                ❤️
+              </span>
+            ))}
+          </div>
+          <IconBtn
+            active={settings.tts}
+            onClick={() => onSettingsChange({ tts: !settings.tts })}
+            title={settings.tts ? 'Read aloud: ON' : 'Read aloud: OFF'}
+          >
+            {settings.tts ? '🔊' : '🔇'}
+          </IconBtn>
+          <IconBtn
+            active={settings.showVi}
+            onClick={() => onSettingsChange({ showVi: !settings.showVi })}
+            title={settings.showVi ? 'Vietnamese meaning burst: ON' : 'Vietnamese meaning burst: OFF'}
+          >
+            <span className="text-[11px] font-black tracking-tight">VI</span>
+          </IconBtn>
+          <IconBtn
+            active={settings.sfx}
+            onClick={() => onSettingsChange({ sfx: !settings.sfx })}
+            title={settings.sfx ? 'Sound effects: ON' : 'Sound effects: OFF'}
+          >
+            <span className={settings.sfx ? '' : 'opacity-40 grayscale'}>🎵</span>
+          </IconBtn>
+          <IconBtn active onClick={() => setPaused(!g.paused)} title="Pause (Esc)">
+            {g.paused ? '▶' : '❚❚'}
+          </IconBtn>
+        </div>
+
+        <div className="absolute right-0 bottom-0 left-0 h-0.5 bg-white/5">
+          <div
+            className={`h-full bg-gradient-to-r ${g.deck.color} transition-[width] duration-300`}
+            style={{ width: `${clamp01(stageProgress) * 100}%` }}
+          />
+        </div>
+      </div>
+
+      {/* Play field */}
+      <div ref={fieldRef} className="relative min-h-0 flex-1 overflow-hidden select-none">
+        <div className="absolute inset-0" style={{ transform: `translate(${shakeX}px, ${shakeY}px)` }}>
+          {/* Danger line */}
+          <div
+            className="absolute right-0 left-0 border-t-2 border-dashed border-rose-500/40"
+            style={{ top: g.height - BASE_ZONE + 30 }}
+          >
+            <div className="absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-rose-500/10 to-transparent" />
+          </div>
+
+          {/* Lasers */}
+          <svg className="pointer-events-none absolute inset-0 h-full w-full">
+            <defs>
+              <linearGradient id="laser" x1="0" y1="1" x2="0" y2="0">
+                <stop offset="0%" stopColor="#22d3ee" />
+                <stop offset="100%" stopColor="#f0abfc" />
+              </linearGradient>
+            </defs>
+            {locked && (
+              <line
+                x1={shipX}
+                y1={shipY - 20}
+                x2={locked.x}
+                y2={locked.y + 32}
+                stroke="#fbbf24"
+                strokeOpacity={0.25}
+                strokeWidth={1.5}
+                strokeDasharray="4 6"
+              />
+            )}
+            {g.lasers.map((l) => (
+              <g key={l.id} opacity={l.life / 0.12}>
+                <line x1={shipX} y1={shipY - 20} x2={l.x} y2={l.y} stroke="url(#laser)" strokeWidth={6} strokeOpacity={0.35} />
+                <line x1={shipX} y1={shipY - 20} x2={l.x} y2={l.y} stroke="#ecfeff" strokeWidth={2} />
+              </g>
+            ))}
+          </svg>
+
+          {/* Shockwaves */}
+          {g.rings.map((r) => {
+            const t = 1 - r.life / r.maxLife;
+            return r.flash ? (
+              <div
+                key={r.id}
+                className="pointer-events-none absolute rounded-full"
+                style={{
+                  left: r.x,
+                  top: r.y,
+                  width: r.size,
+                  height: r.size,
+                  background: `radial-gradient(circle, rgba(255,255,255,0.95) 0%, ${r.color} 30%, transparent 70%)`,
+                  opacity: 1 - t,
+                  transform: `translate(-50%, -50%) scale(${0.3 + easeOutCubic(t) * 1.1})`,
+                }}
+              />
+            ) : (
+              <div
+                key={r.id}
+                className="pointer-events-none absolute rounded-full"
+                style={{
+                  left: r.x,
+                  top: r.y,
+                  width: r.size,
+                  height: r.size,
+                  border: `3px solid ${r.color}`,
+                  boxShadow: `0 0 18px ${r.color}, inset 0 0 18px ${r.color}`,
+                  opacity: (1 - t) * 0.85,
+                  transform: `translate(-50%, -50%) scale(${0.1 + easeOutCubic(t) * 1.15})`,
+                }}
+              />
+            );
+          })}
+
+          {/* Vietnamese meaning bursts (behind falling words so targets stay readable) */}
+          {g.bursts.map((b) => (
+            <MeaningBurstView key={b.id} b={b} />
+          ))}
+
+          {/* Falling words */}
+          {g.words.map((w) => {
+            const isLocked = w.id === g.lockedId;
+            const danger = w.y / (g.height - BASE_ZONE);
+            const sx = w.shake > 0 ? Math.sin(w.shake * 80) * 5 : 0;
+            return (
+              <div
+                key={w.id}
+                className="font-game absolute"
+                style={{
+                  left: w.x,
+                  top: w.y,
+                  transform: `translateX(calc(-50% + ${sx}px)) scale(${isLocked ? 1.15 : 1})`,
+                  zIndex: isLocked ? 10 : 1,
+                  transition: 'transform 0.12s',
+                }}
+              >
+                <div
+                  className={`relative flex items-center rounded-lg border px-2.5 py-1 text-[22px] leading-none font-bold tracking-wide whitespace-nowrap ${
+                    isLocked
+                      ? 'lock-pulse border-amber-300 bg-amber-950/85'
+                      : danger > 0.75
+                        ? 'border-rose-400/60 bg-rose-950/75'
+                        : 'border-white/15 bg-slate-900/75'
+                  } ${w.hit > 0 ? 'brightness-150' : ''}`}
+                  style={{ boxShadow: isLocked ? '0 0 24px rgba(251,191,36,0.45)' : undefined }}
+                >
+                  {isLocked && <span className="absolute -left-4 text-amber-300">▸</span>}
+                  {w.text.split('').map((ch, i) => (
+                    <span
+                      key={i}
+                      className={
+                        i < w.typed
+                          ? 'text-amber-300/40'
+                          : i === w.typed && isLocked
+                            ? 'text-amber-200 underline decoration-2 underline-offset-4'
+                            : isLocked
+                              ? 'text-white'
+                              : danger > 0.75
+                                ? 'text-rose-100'
+                                : 'text-slate-100'
+                      }
+                    >
+                      {ch}
+                    </span>
+                  ))}
+                  {isLocked && <span className="absolute -right-4 text-amber-300">◂</span>}
+                </div>
+                {settings.hints && (
+                  <div className="font-vi mt-1 text-center text-xs font-medium whitespace-nowrap text-cyan-100/85 [text-shadow:0_1px_4px_rgba(0,0,0,0.9)]">
+                    {w.entry.vi}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          {/* Particles */}
+          {g.particles.map((p) =>
+            p.char ? (
+              <span
+                key={p.id}
+                className="font-game pointer-events-none absolute font-bold"
+                style={{
+                  left: p.x,
+                  top: p.y,
+                  color: p.color,
+                  fontSize: p.size,
+                  opacity: p.life / p.maxLife,
+                  transform: `translate(-50%,-50%) rotate(${(1 - p.life / p.maxLife) * 360}deg)`,
+                }}
+              >
+                {p.char}
+              </span>
+            ) : (
+              <span
+                key={p.id}
+                className="pointer-events-none absolute rounded-full"
+                style={{
+                  left: p.x,
+                  top: p.y,
+                  width: p.size,
+                  height: p.size,
+                  background: p.color,
+                  opacity: p.life / p.maxLife,
+                  boxShadow: `0 0 8px ${p.color}`,
+                  transform: 'translate(-50%,-50%)',
+                }}
+              />
+            )
+          )}
+
+          {/* Floating texts */}
+          {g.floats.map((f) => (
+            <span
+              key={f.id}
+              className="font-game pointer-events-none absolute text-lg font-black whitespace-nowrap"
+              style={{
+                left: f.x,
+                top: f.y,
+                color: f.color,
+                opacity: Math.min(1, f.life * 1.5),
+                transform: 'translateX(-50%)',
+                textShadow: '0 2px 8px rgba(0,0,0,0.6)',
+              }}
+            >
+              {f.text}
+            </span>
+          ))}
+
+          {/* Base + ship */}
+          <div className="absolute right-0 bottom-0 left-0 h-[70px] bg-gradient-to-t from-cyan-950/60 to-transparent" />
+          <div
+            className="absolute"
+            style={{ left: shipX, top: shipY, transform: `translate(-50%,-50%) rotate(${g.shipAngle}rad)` }}
+          >
+            <Ship />
+          </div>
+        </div>
+
+        {/* Damage vignette */}
+        {g.hurt > 0 && (
+          <div
+            className="pointer-events-none absolute inset-0 z-20"
+            style={{
+              opacity: g.hurt / 0.6,
+              background: 'radial-gradient(ellipse at center, transparent 45%, rgba(244,63,94,0.5) 100%)',
+            }}
+          />
+        )}
+
+        {/* Typing console (bottom-left, beside the ship) */}
+        <div className="pointer-events-none absolute bottom-3 left-3 z-20 max-w-[calc(50%-52px)]">
+          <div className="font-game flex items-center gap-1.5 overflow-hidden rounded-xl border border-white/15 bg-slate-950/80 px-3 py-2 text-base shadow-xl backdrop-blur sm:text-lg">
+            <span className="text-cyan-400">›</span>
+            {locked ? (
+              <span className="truncate">
+                <span className="text-amber-300">{locked.text.slice(0, locked.typed)}</span>
+                <span className="text-slate-500">{locked.text.slice(locked.typed)}</span>
+              </span>
+            ) : (
+              <span className="truncate text-xs text-slate-500 sm:text-sm">type to lock on…</span>
+            )}
+            <span className="ml-0.5 inline-block h-5 w-0.5 shrink-0 animate-pulse bg-cyan-300" />
+          </div>
+        </div>
+
+        {/* Last word card (bottom-right) */}
+        {g.toast && (
+          <div
+            key={g.toast.id}
+            className="slide-up absolute right-3 bottom-3 z-20 hidden max-w-[min(20rem,calc(50%-52px))] rounded-xl border border-emerald-400/30 bg-emerald-950/85 px-3 py-2 backdrop-blur md:block"
+            style={{ opacity: Math.min(1, g.toast.t) }}
+          >
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-[10px] font-bold tracking-widest text-emerald-400 uppercase">Word learned</span>
+              <button
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => g.toast && say(g.toast.entry.word)}
+                className="rounded-md bg-white/10 px-1.5 text-sm hover:bg-white/20"
+                title="Listen again"
+              >
+                🔊
+              </button>
+            </div>
+            <div className="font-game text-base font-bold text-white">
+              {g.toast.entry.word} <span className="text-xs font-normal text-emerald-300/70">{g.toast.entry.pos}.</span>
+            </div>
+            <div className="font-vi text-sm font-semibold text-amber-200">{g.toast.entry.vi}</div>
+            {g.toast.entry.meaning && (
+              <div className="truncate text-xs text-emerald-100/70">{g.toast.entry.meaning}</div>
+            )}
+          </div>
+        )}
+
+        {/* Countdown */}
+        {g.phase === 'countdown' && !g.paused && (
+          <div className="pointer-events-none absolute inset-0 z-30 flex flex-col items-center justify-center">
+            <div className="text-sm font-bold tracking-[0.4em] text-cyan-300 uppercase">
+              Stage {g.stageIndex + 1} · {g.stage.name}
+            </div>
+            <div
+              key={Math.ceil(g.phaseTimer)}
+              className="pop-in text-8xl font-black text-white drop-shadow-[0_0_30px_rgba(34,211,238,0.7)]"
+            >
+              {Math.ceil(g.phaseTimer)}
+            </div>
+            <div className="mt-2 text-xs text-slate-400">
+              {g.stage.queue.length} words · max {g.stage.maxActive} on screen
+            </div>
+          </div>
+        )}
+
+        {/* Stage clear */}
+        {g.phase === 'stageClear' && (
+          <div className="pointer-events-none absolute inset-0 z-30 flex items-center justify-center">
+            <div className="pop-in text-center">
+              <div className="text-6xl">🎉</div>
+              <div className="bg-gradient-to-r from-emerald-300 to-cyan-300 bg-clip-text text-5xl font-black text-transparent">
+                Stage {g.stageIndex + 1} Clear!
+              </div>
+              <div className="mt-2 text-slate-300">Get ready — the rain gets heavier…</div>
+            </div>
+          </div>
+        )}
+
+        {/* Pause */}
+        {g.paused && !ended && (
+          <Overlay>
+            <div className="text-5xl">⏸️</div>
+            <h2 className="mt-2 text-4xl font-black text-white">Paused</h2>
+            <p className="mt-1 text-slate-400">Press Esc or click resume to continue</p>
+            <div className="mt-5 flex flex-wrap justify-center gap-3">
+              <Btn primary onClick={() => setPaused(false)}>
+                ▶ Resume
+              </Btn>
+              <Btn onClick={onRestart}>↻ Restart</Btn>
+              <Btn onClick={onMenu}>☰ Deck Select</Btn>
+            </div>
+            <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+              <div className="mb-3 text-left text-xs font-bold tracking-widest text-slate-400 uppercase">Settings</div>
+              <SettingsPanel settings={settings} onChange={onSettingsChange} compact />
+            </div>
+          </Overlay>
+        )}
+
+        {/* Game over / Victory */}
+        {ended && (
+          <Overlay wide>
+            <div className="text-6xl">{g.phase === 'victory' ? '🏆' : '💥'}</div>
+            <h2
+              className={`mt-2 bg-gradient-to-r bg-clip-text text-5xl font-black text-transparent ${
+                g.phase === 'victory' ? 'from-amber-200 via-yellow-300 to-emerald-300' : 'from-rose-400 to-orange-400'
+              }`}
+            >
+              {g.phase === 'victory' ? 'Victory!' : 'Game Over'}
+            </h2>
+            <p className="mt-1 text-slate-300">
+              {g.phase === 'victory'
+                ? `You cleared all ${STAGE_COUNT} stages of ${g.deck.name}!`
+                : `Your base fell on stage ${g.stageIndex + 1}. Keep practicing!`}
+            </p>
+            {g.newBest && g.score > 0 && (
+              <div className="mt-2 inline-block rounded-full bg-amber-400/20 px-3 py-1 text-sm font-bold text-amber-300">
+                ⭐ New best score!
+              </div>
+            )}
+            <div className="mt-5 grid grid-cols-3 gap-2 sm:grid-cols-6">
+              <Result label="Score" value={g.score.toLocaleString()} />
+              <Result label="Words" value={g.destroyed} />
+              <Result label="Missed" value={g.missed} />
+              <Result label="Max combo" value={`x${g.maxCombo}`} />
+              <Result label="Accuracy" value={`${accuracy}%`} />
+              <Result label="WPM" value={wpm} />
+            </div>
+
+            {(g.learned.length > 0 || g.missedWords.length > 0) && (
+              <div className="mt-5 grid gap-4 text-left sm:grid-cols-2">
+                <div>
+                  <div className="mb-2 text-xs font-bold tracking-widest text-emerald-400 uppercase">
+                    ✓ Words shot · Từ đã bắn ({g.learned.length})
+                  </div>
+                  <div className="grid max-h-48 gap-1.5 overflow-y-auto pr-1">
+                    {g.learned.length ? (
+                      g.learned.map((l) => <WordRow key={l.word} entry={l} onSpeak={say} />)
+                    ) : (
+                      <div className="text-sm text-slate-500">No words yet — try again!</div>
+                    )}
+                  </div>
+                </div>
+                <div>
+                  <div className="mb-2 text-xs font-bold tracking-widest text-rose-400 uppercase">
+                    ✗ Words missed · Từ bị lọt ({g.missedWords.length})
+                  </div>
+                  <div className="grid max-h-48 gap-1.5 overflow-y-auto pr-1">
+                    {g.missedWords.length ? (
+                      g.missedWords.map((l) => <WordRow key={l.word} entry={l} onSpeak={say} miss />)
+                    ) : (
+                      <div className="text-sm text-slate-500">Perfect defense — nothing slipped through! 🛡️</div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="mt-6 flex flex-wrap justify-center gap-3">
+              <Btn primary onClick={onRestart}>
+                ↻ Play Again
+              </Btn>
+              <Btn onClick={onMenu}>☰ Deck Select</Btn>
+              <Btn onClick={onShare} disabled={shareState === 'working'}>
+                {shareState === 'working'
+                  ? '⏳ Creating…'
+                  : shareState === 'downloaded'
+                    ? '✅ Image saved'
+                    : shareState === 'shared'
+                      ? '✅ Shared'
+                      : shareState === 'failed'
+                        ? '⚠️ Try again'
+                        : '📸 Share score image'}
+              </Btn>
+            </div>
+            <p className="mt-3 text-xs text-slate-500">Press Enter to play again · tap 🔊 to hear a word</p>
+          </Overlay>
+        )}
+      </div>
+
+      {showKeyboard && <VirtualKeyboard onChar={handleChar} onBackspace={handleBackspace} />}
+    </div>
+  );
+}
+
+/** The Vietnamese meaning "blows out" of the exploded word: letters fly from the centre into place. */
+function MeaningBurstView({ b }: { b: MeaningBurst }) {
+  const t = 1 - b.life / b.maxLife;
+  const spread = easeOutBack(clamp01(t / 0.3));
+  const k = 1 - spread; // 1 = collapsed in the centre, 0 = in place
+  const rise = -42 * easeOutCubic(t);
+  const fadeIn = clamp01(t / 0.05);
+  const fadeOut = t < 0.72 ? 1 : clamp01(1 - (t - 0.72) / 0.28);
+  const scale = 0.6 + 0.4 * easeOutBack(clamp01(t / 0.22));
+  const labelIn = clamp01((t - 0.1) / 0.15);
+  const chars = Array.from(b.vi);
+  const n = chars.length;
+
+  return (
+    <div
+      className="pointer-events-none absolute text-center"
+      style={{
+        left: b.x,
+        top: b.y,
+        transform: `translate(-50%, -50%) translateY(${rise}px) scale(${scale})`,
+        opacity: fadeIn * fadeOut,
+      }}
+    >
+      <div
+        className="font-game text-[13px] font-bold tracking-widest text-cyan-200"
+        style={{ opacity: labelIn, transform: `translateY(${(1 - labelIn) * 8}px)` }}
+      >
+        {b.word} <span className="text-cyan-200/50">· {b.pos}.</span>
+      </div>
+      <div
+        className="font-vi text-[26px] leading-tight font-extrabold whitespace-nowrap text-amber-100"
+        style={{
+          textShadow: '0 0 14px rgba(251,191,36,0.85), 0 0 32px rgba(244,114,182,0.45), 0 2px 2px rgba(0,0,0,0.7)',
+          letterSpacing: `${(1 - fadeOut) * 5}px`,
+        }}
+      >
+        {chars.map((ch, i) => {
+          const rel = i - (n - 1) / 2;
+          const seed = b.seeds[i] ?? 0;
+          return (
+            <span
+              key={i}
+              className="inline-block whitespace-pre"
+              style={{
+                transform: `translate(${-rel * 15 * k}px, ${seed * 30 * k}px) rotate(${seed * 140 * k}deg) scale(${1 - 0.6 * k})`,
+              }}
+            >
+              {ch}
+            </span>
+          );
+        })}
+      </div>
+      {b.pts > 0 && (
+        <div className="font-game mt-0.5 text-sm font-black text-amber-300" style={{ opacity: labelIn }}>
+          +{b.pts}
+          {b.combo >= 3 && <span className="ml-1.5 text-pink-300">x{b.combo} combo</span>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function WordRow({ entry, onSpeak, miss }: { entry: WordEntry; onSpeak: (w: string) => void; miss?: boolean }) {
+  return (
+    <div className="flex items-center gap-2 rounded-lg bg-white/5 px-2 py-1.5" title={entry.meaning}>
+      <button
+        onClick={() => onSpeak(entry.word)}
+        className="shrink-0 rounded-md bg-white/10 px-1.5 py-0.5 text-sm hover:bg-white/20"
+        aria-label={`Pronounce ${entry.word}`}
+      >
+        🔊
+      </button>
+      <div className="min-w-0 leading-tight">
+        <div>
+          <span className={`font-game font-bold ${miss ? 'text-rose-200' : 'text-cyan-200'}`}>{entry.word}</span>{' '}
+          <span className="text-[10px] text-slate-500">{entry.pos}.</span>
+        </div>
+        <div className="font-vi truncate text-xs text-slate-300">{entry.vi}</div>
+      </div>
+    </div>
+  );
+}
+
+function IconBtn({
+  children,
+  onClick,
+  active,
+  title,
+}: {
+  children: ReactNode;
+  onClick: () => void;
+  active?: boolean;
+  title: string;
+}) {
+  return (
+    <button
+      onMouseDown={(e) => e.preventDefault()}
+      onClick={onClick}
+      title={title}
+      aria-label={title}
+      className={`flex h-8 w-8 items-center justify-center rounded-lg border text-sm transition-colors ${
+        active
+          ? 'border-cyan-300/40 bg-cyan-400/10 text-cyan-100 hover:bg-cyan-400/20'
+          : 'border-white/10 bg-white/5 text-slate-500 hover:bg-white/10'
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function Stat({ label, value, sub, highlight }: { label: string; value: string | number; sub?: string; highlight?: boolean }) {
+  return (
+    <div className="text-center leading-tight">
+      <div className="text-[10px] font-bold tracking-widest text-slate-500 uppercase">{label}</div>
+      <div className={`font-game text-base font-black sm:text-lg ${highlight ? 'text-amber-300' : 'text-white'}`}>{value}</div>
+      {sub && <div className="text-[10px] text-cyan-300/70">{sub}</div>}
+    </div>
+  );
+}
+
+function Result({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div className="rounded-xl border border-white/10 bg-white/5 px-2 py-2">
+      <div className="font-game text-xl font-black text-white">{value}</div>
+      <div className="text-[10px] tracking-wider text-slate-400 uppercase">{label}</div>
+    </div>
+  );
+}
+
+function Overlay({ children, wide }: { children: ReactNode; wide?: boolean }) {
+  return (
+    <div className="absolute inset-0 z-40 flex items-start justify-center overflow-y-auto bg-slate-950/75 p-4 backdrop-blur-sm sm:items-center">
+      <div
+        className={`pop-in my-auto w-full ${wide ? 'max-w-3xl' : 'max-w-2xl'} rounded-3xl border border-white/10 bg-slate-900/90 p-5 text-center shadow-2xl sm:p-8`}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function Btn({
+  children,
+  onClick,
+  primary,
+  disabled,
+}: {
+  children: ReactNode;
+  onClick: () => void;
+  primary?: boolean;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className={`rounded-xl px-5 py-2.5 font-bold transition-transform hover:scale-105 active:scale-95 disabled:opacity-60 ${
+        primary
+          ? 'bg-gradient-to-r from-cyan-400 to-fuchsia-500 text-white shadow-lg'
+          : 'border border-white/15 bg-white/5 text-slate-200 hover:bg-white/10'
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+const Ship = memo(function Ship() {
+  return (
+    <svg width="64" height="72" viewBox="0 0 64 72" className="drop-shadow-[0_0_14px_rgba(34,211,238,0.6)]">
+      <defs>
+        <linearGradient id="hull" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#67e8f9" />
+          <stop offset="100%" stopColor="#6366f1" />
+        </linearGradient>
+        <linearGradient id="flame" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#fde047" />
+          <stop offset="100%" stopColor="#f97316" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <path d="M26 56 L32 72 L38 56 Z" fill="url(#flame)">
+        <animate
+          attributeName="d"
+          values="M26 56 L32 72 L38 56 Z;M27 56 L32 66 L37 56 Z;M26 56 L32 72 L38 56 Z"
+          dur="0.2s"
+          repeatCount="indefinite"
+        />
+      </path>
+      <path d="M32 2 L46 40 L60 50 L60 56 L4 56 L4 50 L18 40 Z" fill="url(#hull)" stroke="#e0f2fe" strokeWidth="1.5" />
+      <ellipse cx="32" cy="30" rx="6" ry="9" fill="#0f172a" stroke="#a5f3fc" strokeWidth="1.5" />
+      <circle cx="32" cy="28" r="2.5" fill="#22d3ee" />
+      <rect x="29" y="0" width="6" height="8" rx="2" fill="#f0abfc" />
+    </svg>
+  );
+});
