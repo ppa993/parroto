@@ -4,6 +4,21 @@ import { keyboardVisible, type Settings } from '../lib/settings';
 import { sfx, setSfxEnabled } from '../lib/sfx';
 import { renderScoreCard, shareScoreImage, type ScoreCardData } from '../lib/shareCard';
 import { speak, stopSpeech } from '../lib/speech';
+import {
+  canStart,
+  feed,
+  isComplete,
+  kanaToUnits,
+  lettersToUnits,
+  newTypeState,
+  progressParts,
+  unitsToRomaji,
+  type TypeState,
+  type Unit,
+} from '../lib/kana';
+
+const wordHalfWidth = (e: WordEntry, romaji: string) =>
+  Math.max(romaji.length * 14, e.jp ? Array.from(e.jp).length * 28 : 0) / 2 + 20;
 import SettingsPanel from './SettingsPanel';
 import VirtualKeyboard from './VirtualKeyboard';
 
@@ -14,7 +29,8 @@ type FallingWord = {
   x: number;
   y: number;
   speed: number;
-  typed: number;
+  units: Unit[];
+  st: TypeState;
   hit: number; // flash timer after a correct key
   shake: number; // wrong-key shake timer
 };
@@ -186,9 +202,10 @@ export default function Game({ deckId, startStage, settings, onSettingsChange, o
     [g]
   );
 
-  const say = useCallback((text: string) => {
+  const say = useCallback((entry: WordEntry) => {
     const s = settingsRef.current;
-    speak(text, { accent: s.accent, rate: s.rate, voiceURI: s.voiceURI });
+    if (entry.kana) speak(entry.kana, { accent: s.accent, rate: s.rate * 0.95, lang: 'ja' });
+    else speak(entry.word, { accent: s.accent, rate: s.rate, voiceURI: s.voiceURI });
   }, []);
 
   const burst = useCallback(
@@ -216,26 +233,29 @@ export default function Game({ deckId, startStage, settings, onSettingsChange, o
   const spawnWord = useCallback(() => {
     const entry = g.stage.queue[g.spawned];
     if (!entry) return;
-    const half = (entry.word.length * CHAR_W) / 2 + 20;
+    const units = entry.kana ? kanaToUnits(entry.kana) : lettersToUnits(entry.word);
+    const romaji = unitsToRomaji(units);
+    const half = wordHalfWidth(entry, romaji);
     const minX = half;
     const maxX = Math.max(minX + 1, g.width - half);
     let x = minX + Math.random() * (maxX - minX);
     for (let tries = 0; tries < 12; tries++) {
-      const clash = g.words.some((w) => w.y < 90 && Math.abs(w.x - x) < (w.text.length * CHAR_W) / 2 + half);
+      const clash = g.words.some((w) => w.y < 110 && Math.abs(w.x - x) < wordHalfWidth(w.entry, w.text) + half);
       if (!clash) break;
       x = minX + Math.random() * (maxX - minX);
     }
     const travel = g.height - BASE_ZONE;
-    const lenFactor = 1 + Math.max(0, entry.word.length - 5) * 0.04;
+    const lenFactor = 1 + Math.max(0, romaji.length - 5) * 0.04;
     const fallTime = g.stage.fallTime * lenFactor * (0.9 + Math.random() * 0.2);
     g.words.push({
       id: nextId(),
       entry,
-      text: entry.word,
+      text: romaji,
+      units,
+      st: newTypeState(),
       x,
-      y: -30,
+      y: entry.jp ? -60 : -30,
       speed: travel / fallTime,
-      typed: 0,
       hit: 0,
       shake: 0,
     });
@@ -307,7 +327,7 @@ export default function Game({ deckId, startStage, settings, onSettingsChange, o
           id: nextId(),
           x: bx,
           y: by,
-          word: w.text,
+          word: w.entry.jp ? `${w.entry.jp}${w.entry.kana !== w.entry.jp ? ` (${w.entry.kana})` : ''}` : w.text,
           pos: w.entry.pos,
           vi: w.entry.vi,
           pts,
@@ -328,10 +348,10 @@ export default function Game({ deckId, startStage, settings, onSettingsChange, o
       }
 
       // Read the word aloud
-      if (s.tts) say(w.text);
+      if (s.tts) say(w.entry);
       sfx.explode();
 
-      if (!g.learned.some((l) => l.word === w.text)) g.learned.push(w.entry);
+      if (!g.learned.includes(w.entry)) g.learned.push(w.entry);
       g.toast = { entry: w.entry, t: 3.5, id: nextId() };
     },
     [g, burst, say]
@@ -357,7 +377,7 @@ export default function Game({ deckId, startStage, settings, onSettingsChange, o
       let target = g.words.find((w) => w.id === g.lockedId);
       if (!target) {
         const candidates = g.words
-          .filter((w) => w.text[0].toLowerCase() === k && w.y > -25)
+          .filter((w) => canStart(w.units, k) && w.y > -45)
           .sort((a, b) => b.y - a.y);
         if (!candidates.length) {
           mistake();
@@ -367,15 +387,14 @@ export default function Game({ deckId, startStage, settings, onSettingsChange, o
         g.lockedId = target.id;
       }
 
-      if (target.text[target.typed].toLowerCase() === k) {
-        target.typed++;
+      if (feed(target.units, target.st, k)) {
         target.hit = 0.12;
         g.correct++;
         g.score += 2;
         g.lasers.push({ id: nextId(), x: target.x, y: target.y + 16, life: 0.12 });
         burst(target.x, target.y + 18, 5, '#67e8f9', 140);
         sfx.shoot();
-        if (target.typed >= target.text.length) destroyWord(target);
+        if (isComplete(target.units, target.st)) destroyWord(target);
       } else {
         mistake(target);
       }
@@ -386,7 +405,7 @@ export default function Game({ deckId, startStage, settings, onSettingsChange, o
   const handleBackspace = useCallback(() => {
     if (g.phase !== 'playing' || g.paused) return;
     const t = g.words.find((w) => w.id === g.lockedId);
-    if (t) t.typed = 0;
+    if (t) t.st = newTypeState();
     g.lockedId = null;
   }, [g]);
 
@@ -525,7 +544,7 @@ export default function Game({ deckId, startStage, settings, onSettingsChange, o
               g.hurt = 0.6;
               g.heartAnim = 0.5;
               if (g.lockedId === w.id) g.lockedId = null;
-              if (!g.missedWords.some((m) => m.word === w.text)) g.missedWords.push(w.entry);
+              if (!g.missedWords.includes(w.entry)) g.missedWords.push(w.entry);
               burst(w.x, floor + 10, 40, '#f43f5e', 300);
               g.floats.push({ id: nextId(), x: w.x, y: floor - 20, text: '-1 ♥', life: 1, color: '#fb7185' });
               sfx.hurt();
@@ -773,24 +792,43 @@ export default function Game({ deckId, startStage, settings, onSettingsChange, o
                   style={{ boxShadow: isLocked ? '0 0 24px rgba(251,191,36,0.45)' : undefined }}
                 >
                   {isLocked && <span className="absolute -left-4 text-amber-300">▸</span>}
-                  {w.text.split('').map((ch, i) => (
-                    <span
-                      key={i}
-                      className={
-                        i < w.typed
-                          ? 'text-amber-300/40'
-                          : i === w.typed && isLocked
-                            ? 'text-amber-200 underline decoration-2 underline-offset-4'
-                            : isLocked
-                              ? 'text-white'
-                              : danger > 0.75
-                                ? 'text-rose-100'
-                                : 'text-slate-100'
-                      }
-                    >
-                      {ch}
-                    </span>
-                  ))}
+                  {(() => {
+                    const [typed, rest] = progressParts(w.units, w.st);
+                    const restCls = isLocked ? 'text-white' : danger > 0.75 ? 'text-rose-100' : 'text-slate-100';
+                    const romajiLine = (
+                      <span className={w.entry.jp ? 'text-[15px] tracking-wider' : ''}>
+                        <span className="text-amber-300/45">{typed}</span>
+                        {rest && (
+                          <>
+                            <span
+                              className={
+                                isLocked ? 'text-amber-200 underline decoration-2 underline-offset-4' : restCls
+                              }
+                            >
+                              {rest[0]}
+                            </span>
+                            <span className={w.entry.jp ? (isLocked ? 'text-white/80' : 'text-slate-300/80') : restCls}>
+                              {rest.slice(1)}
+                            </span>
+                          </>
+                        )}
+                      </span>
+                    );
+                    if (!w.entry.jp) return romajiLine;
+                    return (
+                      <span className="flex flex-col items-center gap-1 py-0.5">
+                        {settings.showKana && w.entry.kana !== w.entry.jp && (
+                          <span className="font-jp text-[11px] font-medium tracking-normal text-cyan-200/80">
+                            {w.entry.kana}
+                          </span>
+                        )}
+                        <span className={`font-jp text-[26px] leading-none font-bold tracking-normal ${restCls}`}>
+                          {w.entry.jp}
+                        </span>
+                        {romajiLine}
+                      </span>
+                    );
+                  })()}
                   {isLocked && <span className="absolute -right-4 text-amber-300">◂</span>}
                 </div>
                 {settings.hints && (
@@ -882,8 +920,9 @@ export default function Game({ deckId, startStage, settings, onSettingsChange, o
             <span className="text-cyan-400">›</span>
             {locked ? (
               <span className="truncate">
-                <span className="text-amber-300">{locked.text.slice(0, locked.typed)}</span>
-                <span className="text-slate-500">{locked.text.slice(locked.typed)}</span>
+                {locked.entry.jp && <span className="font-jp mr-2 text-white">{locked.entry.jp}</span>}
+                <span className="text-amber-300">{progressParts(locked.units, locked.st)[0]}</span>
+                <span className="text-slate-500">{progressParts(locked.units, locked.st)[1]}</span>
               </span>
             ) : (
               <span className="truncate text-xs text-slate-500 sm:text-sm">type to lock on…</span>
@@ -903,7 +942,7 @@ export default function Game({ deckId, startStage, settings, onSettingsChange, o
               <span className="text-[10px] font-bold tracking-widest text-emerald-400 uppercase">Word learned</span>
               <button
                 onMouseDown={(e) => e.preventDefault()}
-                onClick={() => g.toast && say(g.toast.entry.word)}
+                onClick={() => g.toast && say(g.toast.entry)}
                 className="rounded-md bg-white/10 px-1.5 text-sm hover:bg-white/20"
                 title="Listen again"
               >
@@ -911,7 +950,18 @@ export default function Game({ deckId, startStage, settings, onSettingsChange, o
               </button>
             </div>
             <div className="font-game text-base font-bold text-white">
-              {g.toast.entry.word} <span className="text-xs font-normal text-emerald-300/70">{g.toast.entry.pos}.</span>
+              {g.toast.entry.jp ? (
+                <>
+                  <span className="font-jp">{g.toast.entry.jp}</span>{' '}
+                  <span className="text-xs font-normal text-emerald-200/80">
+                    {g.toast.entry.kana !== g.toast.entry.jp ? `${g.toast.entry.kana} · ` : ''}
+                    {g.toast.entry.word}
+                  </span>
+                </>
+              ) : (
+                g.toast.entry.word
+              )}{' '}
+              <span className="text-xs font-normal text-emerald-300/70">{g.toast.entry.pos}.</span>
             </div>
             <div className="font-vi text-sm font-semibold text-amber-200">{g.toast.entry.vi}</div>
             {g.toast.entry.meaning && (
@@ -1009,7 +1059,7 @@ export default function Game({ deckId, startStage, settings, onSettingsChange, o
                   </div>
                   <div className="grid max-h-48 gap-1.5 overflow-y-auto pr-1">
                     {g.learned.length ? (
-                      g.learned.map((l) => <WordRow key={l.word} entry={l} onSpeak={say} />)
+                      g.learned.map((l) => <WordRow key={`${l.jp ?? ''}${l.word}`} entry={l} onSpeak={say} />)
                     ) : (
                       <div className="text-sm text-slate-500">No words yet — try again!</div>
                     )}
@@ -1021,7 +1071,7 @@ export default function Game({ deckId, startStage, settings, onSettingsChange, o
                   </div>
                   <div className="grid max-h-48 gap-1.5 overflow-y-auto pr-1">
                     {g.missedWords.length ? (
-                      g.missedWords.map((l) => <WordRow key={l.word} entry={l} onSpeak={say} miss />)
+                      g.missedWords.map((l) => <WordRow key={`${l.jp ?? ''}${l.word}`} entry={l} onSpeak={say} miss />)
                     ) : (
                       <div className="text-sm text-slate-500">Perfect defense — nothing slipped through! 🛡️</div>
                     )}
@@ -1119,11 +1169,11 @@ function MeaningBurstView({ b }: { b: MeaningBurst }) {
   );
 }
 
-function WordRow({ entry, onSpeak, miss }: { entry: WordEntry; onSpeak: (w: string) => void; miss?: boolean }) {
+function WordRow({ entry, onSpeak, miss }: { entry: WordEntry; onSpeak: (e: WordEntry) => void; miss?: boolean }) {
   return (
     <div className="flex items-center gap-2 rounded-lg bg-white/5 px-2 py-1.5" title={entry.meaning}>
       <button
-        onClick={() => onSpeak(entry.word)}
+        onClick={() => onSpeak(entry)}
         className="shrink-0 rounded-md bg-white/10 px-1.5 py-0.5 text-sm hover:bg-white/20"
         aria-label={`Pronounce ${entry.word}`}
       >
@@ -1131,7 +1181,12 @@ function WordRow({ entry, onSpeak, miss }: { entry: WordEntry; onSpeak: (w: stri
       </button>
       <div className="min-w-0 leading-tight">
         <div>
-          <span className={`font-game font-bold ${miss ? 'text-rose-200' : 'text-cyan-200'}`}>{entry.word}</span>{' '}
+          {entry.jp && (
+            <span className={`font-jp mr-1 font-bold ${miss ? 'text-rose-100' : 'text-white'}`}>{entry.jp}</span>
+          )}
+          <span className={`font-game ${entry.jp ? 'text-xs' : 'font-bold'} ${miss ? 'text-rose-200' : 'text-cyan-200'}`}>
+            {entry.word}
+          </span>{' '}
           <span className="text-[10px] text-slate-500">{entry.pos}.</span>
         </div>
         <div className="font-vi truncate text-xs text-slate-300">{entry.vi}</div>

@@ -92,6 +92,15 @@ export default function SettingsPanel({ settings, onChange, compact }: Props) {
         checked={settings.hints}
         onChange={(v) => onChange({ hints: v })}
       />
+      {settings.lang === 'ja' && (
+        <ToggleRow
+          icon="あ"
+          title="Show kana reading"
+          sub="Hiện cách đọc hiragana trên chữ Kanji"
+          checked={settings.showKana}
+          onChange={(v) => onChange({ showKana: v })}
+        />
+      )}
       <ToggleRow
         icon="🎵"
         title="Sound effects"

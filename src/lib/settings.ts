@@ -11,9 +11,13 @@ export type Settings = {
   hints: boolean; // show Vietnamese under falling words
   sfx: boolean;
   keyboard: KeyboardMode; // on-screen keyboard
+  lang: 'en' | 'ja'; // learning language
+  showKana: boolean; // show kana reading above kanji (Japanese)
 };
 
 export const DEFAULT_SETTINGS: Settings = {
+  lang: 'en',
+  showKana: true,
   tts: true,
   accent: 'en-US',
   voiceURI: '',

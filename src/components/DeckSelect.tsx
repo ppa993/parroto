@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { DECKS, STAGE_COUNT, STAGE_NAMES, getBest, type WordEntry } from '../data/decks';
+import { DECKS, STAGE_COUNT, STAGE_NAMES, deckLang, getBest, type WordEntry } from '../data/decks';
 import type { Settings } from '../lib/settings';
 import { unlockAudio } from '../lib/sfx';
 import { speak, ttsSupported, unlockSpeech } from '../lib/speech';
@@ -13,10 +13,18 @@ type Props = {
 };
 
 export default function DeckSelect({ initialDeck, settings, onSettingsChange, onStart }: Props) {
-  const [deckId, setDeckId] = useState(initialDeck ?? DECKS[0].id);
+  const decks = DECKS.filter((d) => deckLang(d) === settings.lang);
+  const [pickedId, setDeckId] = useState(initialDeck ?? decks[0].id);
   const [stage, setStage] = useState(0);
   const [peek, setPeek] = useState<WordEntry | null>(null);
-  const deck = DECKS.find((d) => d.id === deckId) ?? DECKS[0];
+  const deck = decks.find((d) => d.id === pickedId) ?? decks[0];
+  const deckId = deck.id;
+  const switchLang = (lang: 'en' | 'ja') => {
+    if (lang === settings.lang) return;
+    onSettingsChange({ lang });
+    setDeckId(DECKS.find((d) => deckLang(d) === lang)!.id);
+    setPeek(null);
+  };
 
   const start = useCallback(() => {
     // Called inside a user gesture: unlock speech + audio for browsers with autoplay restrictions
@@ -34,15 +42,15 @@ export default function DeckSelect({ initialDeck, settings, onSettingsChange, on
         start();
         return;
       }
-      const idx = DECKS.findIndex((d) => d.id === deckId);
+      const idx = decks.findIndex((d) => d.id === deckId);
       if (e.key === 'ArrowDown') {
         e.preventDefault();
-        setDeckId(DECKS[(idx + 1) % DECKS.length].id);
+        setDeckId(decks[(idx + 1) % decks.length].id);
         setPeek(null);
       }
       if (e.key === 'ArrowUp') {
         e.preventDefault();
-        setDeckId(DECKS[(idx - 1 + DECKS.length) % DECKS.length].id);
+        setDeckId(decks[(idx - 1 + decks.length) % decks.length].id);
         setPeek(null);
       }
       if (e.key === 'ArrowRight') setStage((s) => Math.min(STAGE_COUNT - 1, s + 1));
@@ -50,11 +58,12 @@ export default function DeckSelect({ initialDeck, settings, onSettingsChange, on
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [deckId, start]);
+  }, [deckId, decks, start]);
 
   const hear = (wd: WordEntry) => {
     setPeek(wd);
-    speak(wd.word, { accent: settings.accent, rate: settings.rate, voiceURI: settings.voiceURI });
+    if (wd.kana) speak(wd.kana, { accent: settings.accent, rate: settings.rate, lang: 'ja' });
+    else speak(wd.word, { accent: settings.accent, rate: settings.rate, voiceURI: settings.voiceURI });
   };
 
   return (
@@ -70,13 +79,43 @@ export default function DeckSelect({ initialDeck, settings, onSettingsChange, on
           target. Finish the word to destroy it, hear it pronounced, and see its{' '}
           <span className="font-semibold text-amber-200">Vietnamese meaning</span> burst out!
         </p>
+        <div className="mt-5 inline-flex rounded-2xl border border-white/15 bg-white/5 p-1">
+          {(
+            [
+              ['en', '🇬🇧', 'English', 'Tiếng Anh'],
+              ['ja', '🇯🇵', '日本語', 'Tiếng Nhật'],
+            ] as const
+          ).map(([l, flag, label, vi]) => (
+            <button
+              key={l}
+              onClick={() => switchLang(l)}
+              className={`flex items-center gap-2 rounded-xl px-5 py-2 text-left transition-all ${
+                settings.lang === l
+                  ? 'bg-gradient-to-r from-cyan-400 to-fuchsia-500 text-white shadow-lg'
+                  : 'text-slate-300 hover:bg-white/10'
+              }`}
+            >
+              <span className="text-2xl">{flag}</span>
+              <span className="leading-tight">
+                <span className={`block font-bold ${l === 'ja' ? 'font-jp' : ''}`}>{label}</span>
+                <span className="font-vi block text-[11px] opacity-80">{vi}</span>
+              </span>
+            </button>
+          ))}
+        </div>
+        {settings.lang === 'ja' && (
+          <p className="font-vi mx-auto mt-3 max-w-xl text-xs text-pink-200/80">
+            🇯🇵 Type the <b>romaji</b> to shoot Japanese words, e.g. 寿司 → <code>sushi</code>. Both shi/si, tsu/tu,
+            chi/ti, ja/zya work · ん = n/nn · っ = double the consonant (kitte) · ー = <code>-</code>
+          </p>
+        )}
       </div>
 
       <div className="grid w-full max-w-5xl gap-6 lg:grid-cols-[1.35fr_1fr]">
         {/* Left: decks + preview */}
         <div className="space-y-3">
           <h2 className="text-xs font-bold tracking-widest text-slate-400 uppercase">1 · Choose a deck</h2>
-          {DECKS.map((d, i) => {
+          {decks.map((d, i) => {
             const active = d.id === deckId;
             const best = getBest(d.id);
             return (
@@ -142,6 +181,10 @@ export default function DeckSelect({ initialDeck, settings, onSettingsChange, on
                   </button>
                   <div className="min-w-0 leading-tight">
                     <div>
+                      {peek.jp && <span className="font-jp mr-1.5 text-lg font-bold text-white">{peek.jp}</span>}
+                      {peek.jp && peek.kana !== peek.jp && (
+                        <span className="font-jp mr-1.5 text-xs text-pink-200">{peek.kana}</span>
+                      )}
                       <span className="font-game font-bold text-cyan-200">{peek.word}</span>{' '}
                       <span className="text-xs text-slate-500">({peek.pos})</span>{' '}
                       <span className="font-vi font-semibold text-amber-200">— {peek.vi}</span>
@@ -158,16 +201,16 @@ export default function DeckSelect({ initialDeck, settings, onSettingsChange, on
             <div className="flex max-h-44 flex-wrap gap-1.5 overflow-y-auto pr-1">
               {deck.words.map((wd) => (
                 <button
-                  key={wd.word}
-                  title={wd.meaning ? `${wd.vi} — ${wd.meaning}` : wd.vi}
+                  key={`${wd.jp ?? ''}${wd.word}`}
+                  title={wd.meaning ? `${wd.vi} — ${wd.meaning}` : wd.jp ? `${wd.word} — ${wd.vi}` : wd.vi}
                   onClick={() => hear(wd)}
-                  className={`font-game rounded-md px-2 py-0.5 text-xs transition-colors ${
-                    peek?.word === wd.word
+                  className={`${wd.jp ? 'font-jp' : 'font-game'} rounded-md px-2 py-0.5 text-xs transition-colors ${
+                    peek === wd
                       ? 'bg-cyan-400/25 text-cyan-100'
                       : 'bg-white/5 text-slate-300 hover:bg-white/15'
                   }`}
                 >
-                  {wd.word}
+                  {wd.jp ?? wd.word}
                 </button>
               ))}
             </div>

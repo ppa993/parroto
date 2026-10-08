@@ -7,6 +7,7 @@ export type SpeakOptions = {
   rate: number;
   voiceURI?: string;
   volume?: number;
+  lang?: 'en' | 'ja';
 };
 
 const synth: SpeechSynthesis | null =
@@ -66,14 +67,31 @@ export function pickVoice(accent: Accent, voiceURI?: string): SpeechSynthesisVoi
   return [...pool].sort((a, b) => voiceScore(b) - voiceScore(a))[0];
 }
 
+export function getJapaneseVoices(): SpeechSynthesisVoice[] {
+  if (!voices.length) refreshVoices();
+  return voices.filter((v) => norm(v.lang).startsWith('ja'));
+}
+
+export function pickJapaneseVoice(): SpeechSynthesisVoice | null {
+  const ja = getJapaneseVoices();
+  if (!ja.length) return null;
+  const score = (v: SpeechSynthesisVoice) =>
+    (/natural|neural|enhanced|premium|online/i.test(v.name) ? 5 : 0) +
+    (/google|kyoko|nanami|haruka|o-ren|otoya/i.test(v.name) ? 3 : 0);
+  return [...ja].sort((a, b) => score(b) - score(a))[0];
+}
+
+export const hasJapaneseVoice = () => getJapaneseVoices().length > 0;
+
 function buildUtterance(text: string, opts: SpeakOptions) {
   const u = new SpeechSynthesisUtterance(text);
-  const v = pickVoice(opts.accent, opts.voiceURI);
+  const ja = opts.lang === 'ja';
+  const v = ja ? pickJapaneseVoice() : pickVoice(opts.accent, opts.voiceURI);
   if (v) {
     u.voice = v;
     u.lang = v.lang;
   } else {
-    u.lang = opts.accent;
+    u.lang = ja ? 'ja-JP' : opts.accent;
   }
   u.rate = opts.rate;
   u.pitch = 1;

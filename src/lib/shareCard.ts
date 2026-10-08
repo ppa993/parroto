@@ -165,8 +165,10 @@ export async function renderScoreCard(d: ScoreCardData): Promise<Blob | null> {
       const y = 1155 + Math.floor(i / 2) * 46;
       ctx.fillStyle = '#a5f3fc';
       ctx.font = `800 28px ${MONO}`;
-      ctx.fillText(wd.word, x, y);
-      const ww = ctx.measureText(wd.word).width;
+      const label = wd.jp ?? wd.word;
+      if (wd.jp) ctx.font = `800 28px "Noto Sans JP", ${FONT}`;
+      ctx.fillText(label, x, y);
+      const ww = ctx.measureText(label).width;
       ctx.fillStyle = '#e2e8f0';
       ctx.font = `500 26px ${FONT}`;
       ctx.fillText(fit(ctx, ` – ${wd.vi}`, 420 - ww), x + ww, y);

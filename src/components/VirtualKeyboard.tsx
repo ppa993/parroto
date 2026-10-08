@@ -38,6 +38,11 @@ function VirtualKeyboard({ onChar, onBackspace }: Props) {
               </button>
             ))}
             {r === 2 && (
+              <button onPointerDown={press('-', () => onChar('-'))} className={keyClass('-')} aria-label="Long vowel">
+                ー
+              </button>
+            )}
+            {r === 2 && (
               <button
                 onPointerDown={press('⌫', onBackspace)}
                 className={`${keyClass('⌫')} max-w-[90px] flex-[1.6] text-base normal-case`}

@@ -3,16 +3,22 @@ import natureExtra from './words/nature';
 import travelExtra from './words/travel';
 import businessExtra from './words/business';
 import academicExtra from './words/academic';
+import { JA_DECKS } from './jaDecks';
 
 export type WordEntry = {
   word: string;
   pos: string; // part of speech
   vi: string; // Vietnamese meaning
   meaning: string; // English definition
+  jp?: string; // Japanese display (kanji / kana)
+  kana?: string; // Japanese reading — typed as romaji
 };
+
+export type Lang = 'en' | 'ja';
 
 export type Deck = {
   id: string;
+  lang?: Lang;
   name: string;
   nameVi: string;
   icon: string;
@@ -298,6 +304,12 @@ for (const deck of DECKS) {
     return true;
   });
 }
+
+DECKS.push(...JA_DECKS);
+
+export const deckLang = (d: Deck): Lang => d.lang ?? 'en';
+/** Text shown for a word: Japanese display or the English word */
+export const displayOf = (e: WordEntry) => e.jp ?? e.word;
 
 export const STAGE_COUNT = 5;
 /** Words per stage: 12, 16, 20, 24, 28 */
