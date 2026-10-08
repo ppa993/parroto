@@ -13,11 +13,15 @@ export type Settings = {
   keyboard: KeyboardMode; // on-screen keyboard
   lang: 'en' | 'ja'; // learning language
   showKana: boolean; // show kana reading above kanji (Japanese)
+  showInitialLetter: boolean; // show the first answer letter in hints
+  dropSpeed: number; // falling-word speed multiplier
 };
 
 export const DEFAULT_SETTINGS: Settings = {
   lang: 'en',
   showKana: true,
+  showInitialLetter: false,
+  dropSpeed: 0.25,
   tts: true,
   accent: 'en-US',
   voiceURI: '',

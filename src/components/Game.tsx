@@ -69,6 +69,7 @@ type Phase = 'countdown' | 'playing' | 'stageClear' | 'over' | 'victory';
 type ShareState = 'idle' | 'working' | 'shared' | 'downloaded' | 'failed';
 
 const BASE_ZONE = 110; // px from bottom where words hit the base
+const DROP_SPEED_OPTIONS = [0.25, 0.5, 0.75, 1] as const;
 const CHAR_W = 14;
 const BURST_LIFE = 2.2;
 const COLORS = ['#dfc995', '#b8d0bd', '#d8947e', '#c7ddd1', '#d4c09a', '#91b6a6'];
@@ -538,7 +539,7 @@ export default function Game({ deckId, startStage, settings, onSettingsChange, o
           const floor = g.height - BASE_ZONE;
           const survivors: FallingWord[] = [];
           for (const w of g.words) {
-            w.y += w.speed * dt;
+            w.y += w.speed * settingsRef.current.dropSpeed * dt;
             w.hit = Math.max(0, w.hit - dt);
             w.shake = Math.max(0, w.shake - dt);
             if (w.y >= floor) {
@@ -806,52 +807,14 @@ export default function Game({ deckId, startStage, settings, onSettingsChange, o
                   style={{ boxShadow: isLocked ? '0 0 0 3px rgba(95,122,92,0.15), 0 10px 28px rgba(61,74,58,0.12)' : undefined }}
                 >
                   {isLocked && <span className="absolute -left-4 text-[var(--sage)]">▸</span>}
-                  {(() => {
-                    const [typed, rest] = progressParts(w.units, w.st);
-                    const restCls = isLocked ? 'text-[var(--ink)]' : danger > 0.75 ? 'text-[var(--rose)]' : 'text-[var(--ink)]';
-                    const romajiLine = (
-                      <span className={w.entry.jp ? 'text-[15px] tracking-wider' : ''}>
-                        <span className="text-[var(--sage)]/45">{typed}</span>
-                        {rest && (
-                          <>
-                            <span
-                              className={
-                                isLocked
-                                  ? 'text-[var(--sage-deep)] underline decoration-2 underline-offset-4'
-                                  : restCls
-                              }
-                            >
-                              {rest[0]}
-                            </span>
-                            <span className={w.entry.jp ? (isLocked ? 'text-[var(--ink-soft)]' : 'text-[var(--muted)]') : restCls}>
-                              {rest.slice(1)}
-                            </span>
-                          </>
-                        )}
-                      </span>
-                    );
-                    if (!w.entry.jp) return romajiLine;
-                    return (
-                      <span className="flex flex-col items-center gap-1 py-0.5">
-                        {settings.showKana && w.entry.kana !== w.entry.jp && (
-                          <span className="font-jp text-[11px] font-medium tracking-normal text-[var(--sage)]">
-                            {w.entry.kana}
-                          </span>
-                        )}
-                        <span className={`font-jp text-[26px] leading-none font-bold tracking-normal ${restCls}`}>
-                          {w.entry.jp}
-                        </span>
-                        {romajiLine}
-                      </span>
-                    );
-                  })()}
+                  <span className="flex flex-col items-center gap-0.5">
+                    <span className="font-vi text-[18px] leading-tight font-bold text-[var(--ink)]">
+                      {w.entry.vi}
+                    </span>
+                    <TypingHint units={w.units} state={w.st} showInitialLetter={settings.showInitialLetter} />
+                  </span>
                   {isLocked && <span className="absolute -right-4 text-[var(--sage)]">◂</span>}
                 </div>
-                {settings.hints && (
-                  <div className="font-vi mt-1 text-center text-xs font-medium whitespace-nowrap text-[var(--ink-soft)] [text-shadow:0_1px_0_rgba(251,248,240,0.9)]">
-                    {w.entry.vi}
-                  </div>
-                )}
               </div>
             );
           })}
@@ -935,10 +898,8 @@ export default function Game({ deckId, startStage, settings, onSettingsChange, o
           <div className="font-game flex items-center gap-1.5 overflow-hidden rounded-2xl border border-[var(--line)] bg-[var(--paper)]/90 px-3 py-2 text-base shadow-[var(--shadow-sm)] backdrop-blur sm:text-lg">
             <span className="text-[var(--sage)]">›</span>
             {locked ? (
-              <span className="truncate">
-                {locked.entry.jp && <span className="font-jp mr-2 text-[var(--ink)]">{locked.entry.jp}</span>}
-                <span className="text-[var(--sage-deep)]">{progressParts(locked.units, locked.st)[0]}</span>
-                <span className="text-[var(--muted)]">{progressParts(locked.units, locked.st)[1]}</span>
+              <span className="flex min-w-0 truncate text-[var(--ink)]">
+                <TypingHint units={locked.units} state={locked.st} showInitialLetter={settings.showInitialLetter} />
               </span>
             ) : (
               <span className="truncate text-xs text-[var(--muted)] sm:text-sm">gõ để khóa mục tiêu…</span>
@@ -1161,6 +1122,20 @@ export default function Game({ deckId, startStage, settings, onSettingsChange, o
                   />
                 ))}
               </div>
+              <input
+                type="range"
+                min="0"
+                max={DROP_SPEED_OPTIONS.length - 1}
+                step="1"
+                value={Math.max(0, DROP_SPEED_OPTIONS.indexOf(settings.dropSpeed as (typeof DROP_SPEED_OPTIONS)[number]))}
+                onChange={(e) => onSettingsChange({ dropSpeed: DROP_SPEED_OPTIONS[Number(e.target.value)] })}
+                className="mt-2 w-28 accent-[var(--sage)]"
+                aria-label="Tốc độ rơi của từ"
+                title={`Tốc độ rơi: x${settings.dropSpeed}`}
+              />
+              <div className="flex justify-between text-[9px] text-[var(--muted)]">
+                {DROP_SPEED_OPTIONS.map((speed) => <span key={speed}>{speed}</span>)}
+              </div>
             </div>
             <div className="hidden text-center sm:block">
               <div className="font-game text-[34px] leading-none font-black text-[var(--ink)]">
@@ -1200,7 +1175,21 @@ export default function Game({ deckId, startStage, settings, onSettingsChange, o
   );
 }
 
-/** The Vietnamese meaning "blows out" of the exploded word: letters fly from the centre into place. */
+function TypingHint({ units, state, showInitialLetter }: { units: Unit[]; state: TypeState; showInitialLetter: boolean }) {
+  const [typed, rest] = progressParts(units, state);
+  const initial = !typed && showInitialLetter ? rest.slice(0, 1) : '';
+  const hiddenCount = Math.max(0, rest.length - initial.length);
+
+  return (
+    <span className="font-game text-[15px] font-semibold tracking-[0.16em] leading-none text-[#b88632]">
+      <span className="text-[var(--sage-deep)]">{typed}</span>
+      <span className="text-[#b88632]">{initial}</span>
+      <span className="text-[#b88632]">{'_'.repeat(hiddenCount)}</span>
+    </span>
+  );
+}
+
+/** The answer "blows out" of the exploded word: letters fly from the centre into place. */
 function MeaningBurstView({ b }: { b: MeaningBurst }) {
   const t = 1 - b.life / b.maxLife;
   const spread = easeOutBack(clamp01(t / 0.3));
@@ -1210,7 +1199,7 @@ function MeaningBurstView({ b }: { b: MeaningBurst }) {
   const fadeOut = t < 0.72 ? 1 : clamp01(1 - (t - 0.72) / 0.28);
   const scale = 0.6 + 0.4 * easeOutBack(clamp01(t / 0.22));
   const labelIn = clamp01((t - 0.1) / 0.15);
-  const chars = Array.from(b.vi);
+  const chars = Array.from(b.word);
   const n = chars.length;
 
   return (
@@ -1224,13 +1213,13 @@ function MeaningBurstView({ b }: { b: MeaningBurst }) {
       }}
     >
       <div
-        className="font-game text-[13px] font-bold tracking-widest text-[var(--sage-deep)]"
+        className="font-game text-[13px] font-bold tracking-widest text-[var(--paper)]"
         style={{ opacity: labelIn, transform: `translateY(${(1 - labelIn) * 8}px)` }}
       >
-        {b.word} <span className="text-[var(--muted)]">· {b.pos}.</span>
+        <span className="text-[var(--muted)]">· {b.pos}.</span>
       </div>
       <div
-        className="font-vi text-[26px] leading-tight font-extrabold whitespace-nowrap text-[var(--ink)]"
+        className="font-jp text-[26px] leading-tight font-extrabold whitespace-nowrap text-[var(--paper)]"
         style={{
           textShadow: '0 2px 12px rgba(251,248,240,0.9), 0 0 18px rgba(196,165,116,0.35)',
           letterSpacing: `${(1 - fadeOut) * 5}px`,

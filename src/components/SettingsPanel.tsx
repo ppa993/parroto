@@ -89,6 +89,13 @@ export default function SettingsPanel({ settings, onChange, compact }: Props) {
         checked={settings.hints}
         onChange={(v) => onChange({ hints: v })}
       />
+      <ToggleRow
+        icon="🔤"
+        title="Hiện chữ cái đầu"
+        sub="Hiện chữ cái đầu của đáp án trong gợi ý"
+        checked={settings.showInitialLetter}
+        onChange={(v) => onChange({ showInitialLetter: v })}
+      />
       {settings.lang === 'ja' && (
         <ToggleRow
           icon="あ"
